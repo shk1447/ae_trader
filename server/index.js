@@ -153,7 +153,7 @@ module.exports = (async (config) => {
     let options = {
       swaggerDefinition: {
         info: {
-          description: 'This is a sample server',
+          description: 'Trading Server by AutoEncoder',
           title: 'Swagger',
           version: '1.0.0',
         },
@@ -169,7 +169,7 @@ module.exports = (async (config) => {
         schemes: ['http', 'https'],
       },
       basedir: __dirname, //app absolute path
-      files: ['./routes/api/*.js'] //Path to the API handle folder
+      files: ['./routes/api/**/*.js'] //Path to the API handle folder
     };
     expressSwagger(options)
 

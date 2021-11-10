@@ -25,6 +25,7 @@ function create_user_db(email) {
   return storage_key;
 }
 
+/*
 passport.use('google', new GoogleStrategy({
   callbackURL: process.env.google_domain + '/auth/google/callback',
   clientID: process.env.google_id,
@@ -53,6 +54,7 @@ passport.use('google', new GoogleStrategy({
     });
   })
 )
+*/
 
 passport.use('local', new LocalStrategy({
   usernameField: 'email',

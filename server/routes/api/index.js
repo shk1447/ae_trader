@@ -1,4 +1,5 @@
 
 module.exports = {
-  stock: {}
+  auth: require('./auth'),
+  stock: require('./stock')
 }
