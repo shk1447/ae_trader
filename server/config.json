@@ -1,0 +1,37 @@
+{
+  "root_path": "./",
+  "host": "0.0.0.0",
+  "port": 8081,
+  "session_time": 240,
+  "database": {
+    "type": "sqlite3",
+    "pg": {
+      "host": "127.0.0.1",
+      "user": "root",
+      "password": "root",
+      "database": "root"
+    },
+    "mysql": {
+      "host": "127.0.0.1",
+      "user": "root",
+      "password": "root",
+      "database": "root"
+    },
+    "sqlite3": {
+      "filename": "./trader.db"
+    }
+  },
+  "google_auth": {
+    "id": "",
+    "secret": "",
+    "domain": ""
+  },
+  "smtp": {
+    "service": "",
+    "host": "",
+    "auth": {
+      "user": "",
+      "pass": ""
+    }
+  }
+}
