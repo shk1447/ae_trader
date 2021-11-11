@@ -2,16 +2,23 @@ const collector = require('./modules/NaverFinance');
 const analysis = require('./modules/Analysis');
 const connector = require('../../../connector');
 const SMA = require('technicalindicators').SMA
+
+const cliProgress = require('cli-progress');
+
 module.exports = {
   get: {
     "initialize": async (req, res, next) => {
-      let stockList = await collector.getStockList()
+      let stockList = await collector.getStockList();
 
       stockList = stockList.filter((d) => (!(d.stock_name.includes("KODEX") || d.stock_name.includes("TIGER") || d.stock_name.includes("KOSEF") || d.stock_name.includes("HANARO") || d.stock_name.includes("KINDEX") || d.stock_name.includes("선물") || d.stock_name.includes("인버스") || d.stock_name.includes("KBSTAR") || d.stock_name.includes("ARIRANG") || d.stock_name.includes("ETN") || d.stock_name.includes("고배당"))))
+
       await connector.dao.StockList.drop();
       await connector.dao.StockList.create();
       await connector.dao.StockList.truncate();
       await connector.dao.StockList.batchInsert(stockList);
+
+      const progress_bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+      progress_bar.start(stockList.length, 0);
 
       const nextStep = async (step) => {
         if(step < stockList.length) {
@@ -19,26 +26,54 @@ module.exports = {
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
           await connector.dao.StockData.create();
 
+          progress_bar.update(step + 1);
           nextStep(step + 1);
         } else {
-          console.log('completed')
+          progress_bar.stop();
         }
       }
       nextStep(0)
       res.status(200).send('OK');
     },
-    "analysis": async (req,res,next) => {
+    "clear": async (req,res,next) => {
       const stockList = await connector.dao.StockList.select({});
+
+      connector.dao.StockData.table_name = "stock_data";
+      await connector.dao.StockData.truncate();
+
+      const progress_bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+      progress_bar.start(stockList.length, 0);
 
       const nextStep = async (step) => {
         if(step < stockList.length) {
           var item = stockList[step];
-          console.log(item.stock_code)
+          connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
+          await connector.dao.StockData.truncate();
+
+          progress_bar.update(step + 1);
+          nextStep(step + 1);
+        } else {
+          progress_bar.stop();
+        }
+      }
+      nextStep(0);
+      res.status(200).send('OK');
+    },
+    "analysis": async (req,res,next) => {
+      const days = req.query.days ? req.query.days : 5;
+      const stockList = await connector.dao.StockList.select({});
+
+      const progress_bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+      progress_bar.start(stockList.length, 0);
+
+      const nextStep = async (step) => {
+        if(step < stockList.length) {
+          var item = stockList[step];
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
 
           let rows = [];
           let recommended_rows = []
-          const data = await collector.getSise(item.stock_code, 100);
+          const data = await collector.getSise(item.stock_code, days);
           const close_arr = data.map((d) => d.close)
           let short = new SMA({period:20, values:close_arr});
           let long = new SMA({period:60, values:close_arr});
@@ -93,19 +128,21 @@ module.exports = {
             }
 
             rows.push(row);
-            console.log(i);
           }
           
-          await connector.dao.StockData.insert(rows).onConflict(['code', 'date']).merge();
+          if(rows.length > 0) {
+            await connector.dao.StockData.insert(rows).onConflict(['code', 'date']).merge();
+          }         
 
           if(recommended_rows.length > 0) {
             connector.dao.StockData.table_name = "stock_data";
             await connector.dao.StockData.insert(recommended_rows).onConflict(['code', 'date']).merge();
           }
 
+          progress_bar.update(step + 1);
           nextStep(step + 1);
         } else {
-          console.log('completed')
+          progress_bar.stop();
         }
       }
       nextStep(0);
