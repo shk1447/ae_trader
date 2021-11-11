@@ -40,9 +40,7 @@ global.vases = {
   //transport:transport
 }
 
-
-const knex = require('knex');
-const connector = require('./db');
+const connector = require('./connector');
 
 if (process.env.PORT) config.port = process.env.PORT;
 if (process.env.HOST) config.proxy = process.env.HOST;
