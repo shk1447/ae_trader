@@ -132,7 +132,7 @@ module.exports = {
 
             if(rows.length > 60) {
               row['train'] = rows.slice(rows.length - 60).concat([row]).map((d) => {
-                return (d.insight.support + d.insight.future_resist) - (d.insight.resist + d.insight.future_support)
+                return (d.meta.insight.support + d.meta.insight.future_resist) - (d.meta.insight.resist + d.meta.insight.future_support)
               })
             }
             rows.push(row);
