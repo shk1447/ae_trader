@@ -25,29 +25,33 @@ module.exports = function() {
                                     page_num = page_num > req_page ? req_page : page_num;
                                 }
                             }
-                            var nodes = $('.type2 tbody tr td span');
-                            var row = {};
-                            var header = ["date", "close", "gap", "open", "high", "low", "volume"]
-                            
-                            for(var index = 0; index < nodes.length; index++) {
-                                var row_num = parseInt(index/7);
-                                if(page_num === num && row_num > (remain_row - 1)) {
-                                    break;
+                            if($) {
+                                var nodes = $('.type2 tbody tr td span');
+                                var row = {};
+                                var header = ["date", "close", "gap", "open", "high", "low", "volume"]
+                                
+                                for(var index = 0; index < nodes.length; index++) {
+                                    var row_num = parseInt(index/7);
+                                    if(page_num === num && row_num > (remain_row - 1)) {
+                                        break;
+                                    }
+                                    // 날짜, 종가, 전일비, 시가, 고가, 저가, 거래량
+                                    var i = index%7;
+                                    var node = nodes[index];
+                                    if(i == 2) continue;
+                                    row[header[i]] = header[i] == 'date' ? new Date(node.firstChild.data.replace(/\n/gi,"").replace(/\t/gi,"").replace(/,/gi,"")).getTime() : parseInt(node.firstChild.data.replace(/\n/gi,"").replace(/\t/gi,"").replace(/,/gi,""));
+                                    if(i === 6) {
+                                        rows.unshift(row);
+                                        row = {};
+                                    }    
                                 }
-                                // 날짜, 종가, 전일비, 시가, 고가, 저가, 거래량
-                                var i = index%7;
-                                var node = nodes[index];
-                                if(i == 2) continue;
-                                row[header[i]] = header[i] == 'date' ? new Date(node.firstChild.data.replace(/\n/gi,"").replace(/\t/gi,"").replace(/,/gi,"")).getTime() : parseInt(node.firstChild.data.replace(/\n/gi,"").replace(/\t/gi,"").replace(/,/gi,""));
-                                if(i === 6) {
-                                    rows.unshift(row);
-                                    row = {};
-                                }    
-                            }
-                            
-                            num++
-                            if(num<page_num) {
-                                page_req(num,code,rows);
+                                
+                                num++
+                                if(num<page_num) {
+                                    page_req(num,code,rows);
+                                } else {
+                                    resolve(rows)
+                                }
                             } else {
                                 resolve(rows)
                             }

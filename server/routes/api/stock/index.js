@@ -5,6 +5,8 @@ const SMA = require('technicalindicators').SMA
 
 const cliProgress = require('cli-progress');
 
+const dfd = require("danfojs-node")
+
 module.exports = {
   get: {
     "initialize": async (req, res, next) => {
@@ -59,9 +61,10 @@ module.exports = {
       nextStep(0);
       res.status(200).send('OK');
     },
-    "analysis": async (req,res,next) => {
-      const days = req.query.days ? req.query.days : 5;
-      const stockList = await connector.dao.StockList.select({});
+    "collect": async (req,res,next) => {
+      const code = req.query.code ? {stock_code:req.query.code} : {};
+      const days = req.query.days ? parseInt(req.query.days) : 5;
+      const stockList = await connector.dao.StockList.select(code);
 
       const progress_bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
       progress_bar.start(stockList.length, 0);
@@ -104,11 +107,10 @@ module.exports = {
                     upward_point: result.upward_point.length,
                     downward_point: result.downward_point.length,
                     insight:insight,
-                    prev_insight: prev_insight,
-                    short_ma:short_ma.slice(i - 60, i)
+                    prev_insight: prev_insight
                   }
                   row['meta'] = JSON.stringify(meta);
-                  if(prev_insight.support.length + prev_insight.future_resist.length <= prev_insight.resist.length + prev_insight.future_support.length && insight.support.length + insight.future_resist.length >= insight.future_support.length + insight.resist.length && insight.support.length > insight.resist.length && prev_insight.support.length < prev_insight.resist.length && prev_insight.future_support.length < insight.future_support.length && prev_insight.resist.length > insight.resist.length) {
+                  if(prev_insight.support + prev_insight.future_resist <= prev_insight.resist + prev_insight.future_support && insight.support + insight.future_resist >= insight.future_support + insight.resist && insight.support > insight.resist && prev_insight.support < prev_insight.resist && prev_insight.future_support < insight.future_support && prev_insight.resist > insight.resist) {
                     if(!(long_ma[i - 2] > long_ma[i - 1] && long_ma[i - 1] > long_ma[i])) {
                       row['marker'] = '매수';
                       let futures = data.slice(i, i + 60);
@@ -117,6 +119,7 @@ module.exports = {
                         var high_rate = max_point.high / row.close * 100;
                         row['result'] = high_rate;
                       }
+                      
                       recommended_rows.push(row)
                     }
                   }
@@ -127,16 +130,29 @@ module.exports = {
               console.log(error)
             }
 
+            if(rows.length > 60) {
+              row['train'] = rows.slice(rows.length - 60).concat([row]).map((d) => {
+                return (d.insight.support + d.insight.future_resist) - (d.insight.resist + d.insight.future_support)
+              })
+            }
             rows.push(row);
           }
           
           if(rows.length > 0) {
-            await connector.dao.StockData.insert(rows).onConflict(['code', 'date']).merge();
+            if(rows.length > 100) {
+              await connector.dao.StockData.batchInsert(rows);
+            } else {
+              await connector.dao.StockData.insert(rows).onConflict(['code', 'date']).merge();
+            }
           }         
 
           if(recommended_rows.length > 0) {
             connector.dao.StockData.table_name = "stock_data";
-            await connector.dao.StockData.insert(recommended_rows).onConflict(['code', 'date']).merge();
+            if(recommended_rows.length > 100) {
+              await connector.dao.StockData.batchInsert(recommended_rows);
+            } else {
+              await connector.dao.StockData.insert(recommended_rows).onConflict(['code', 'date']).merge();
+            }
           }
 
           progress_bar.update(step + 1);
