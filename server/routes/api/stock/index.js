@@ -110,6 +110,15 @@ module.exports = {
                     prev_insight: prev_insight
                   }
                   row['meta'] = JSON.stringify(meta);
+                  var train_set = [...rows].slice(rows.length - 59).concat([row]).filter((d) => d.meta);
+                  if(train_set.length == 60) {
+                    var train = [...train_set].map((d) => {
+                      let meta = JSON.parse(d.meta);
+                      return meta.insight.support - meta.insight.resist
+                    })
+                    meta['train'] = train;
+                  }
+                  row['meta'] = JSON.stringify(meta);
                   if(prev_insight.support + prev_insight.future_resist <= prev_insight.resist + prev_insight.future_support && insight.support + insight.future_resist >= insight.future_support + insight.resist && insight.support > insight.resist && prev_insight.support < prev_insight.resist && prev_insight.future_support < insight.future_support && prev_insight.resist > insight.resist) {
                     if(!(long_ma[i - 2] > long_ma[i - 1] && long_ma[i - 1] > long_ma[i])) {
                       row['marker'] = '매수';
@@ -130,11 +139,6 @@ module.exports = {
               console.log(error)
             }
 
-            if(rows.length > 60) {
-              row['train'] = rows.slice(rows.length - 60).concat([row]).map((d) => {
-                return (d.meta.insight.support + d.meta.insight.future_resist) - (d.meta.insight.resist + d.meta.insight.future_support)
-              })
-            }
             rows.push(row);
           }
           
