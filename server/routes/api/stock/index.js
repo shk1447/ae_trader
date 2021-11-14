@@ -23,7 +23,7 @@ module.exports = {
       progress_bar.start(stockList.length, 0);
 
       const nextStep = async (step) => {
-        if(step < stockList.length) {
+        if (step < stockList.length) {
           var item = stockList[step];
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
           await connector.dao.StockData.create();
@@ -37,7 +37,7 @@ module.exports = {
       nextStep(0)
       res.status(200).send('OK');
     },
-    "clear": async (req,res,next) => {
+    "clear": async (req, res, next) => {
       const stockList = await connector.dao.StockList.select({});
 
       connector.dao.StockData.table_name = "stock_data";
@@ -47,7 +47,7 @@ module.exports = {
       progress_bar.start(stockList.length, 0);
 
       const nextStep = async (step) => {
-        if(step < stockList.length) {
+        if (step < stockList.length) {
           var item = stockList[step];
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
           await connector.dao.StockData.truncate();
@@ -61,8 +61,8 @@ module.exports = {
       nextStep(0);
       res.status(200).send('OK');
     },
-    "collect": async (req,res,next) => {
-      const code = req.query.code ? {stock_code:req.query.code} : {};
+    "collect": async (req, res, next) => {
+      const code = req.query.code ? { stock_code: req.query.code } : {};
       const days = req.query.days ? parseInt(req.query.days) : 5;
       const stockList = await connector.dao.StockList.select(code);
 
@@ -70,7 +70,7 @@ module.exports = {
       progress_bar.start(stockList.length, 0);
 
       const nextStep = async (step) => {
-        if(step < stockList.length) {
+        if (step < stockList.length) {
           var item = stockList[step];
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
 
@@ -78,17 +78,17 @@ module.exports = {
           let recommended_rows = []
           const data = await collector.getSise(item.stock_code, days);
           const close_arr = data.map((d) => d.close)
-          let short = new SMA({period:20, values:close_arr});
-          let long = new SMA({period:60, values:close_arr});
+          let short = new SMA({ period: 20, values: close_arr });
+          let long = new SMA({ period: 60, values: close_arr });
 
-          let short_ma =new Array(19).concat(short.result)
+          let short_ma = new Array(19).concat(short.result)
           let long_ma = new Array(59).concat(long.result)
           let prev_insight;
-          for(let i = 0; i < data.length; i++) {
+          for (let i = 0; i < data.length; i++) {
             let row = data[i];
             row['code'] = item.stock_code;
             try {
-              if(long_ma[i - 2]) {
+              if (long_ma[i - 2]) {
                 let result = {
                   curr_trend: 0,
                   init_trend: 0,
@@ -98,37 +98,47 @@ module.exports = {
                 };
                 analysis.segmentation([...data].splice(0, i + 1), result);
                 let insight = analysis.cross_point(result, row);
-                
-                if(prev_insight) {
+
+                if (prev_insight) {
                   let meta = {
                     curr_trend: result.curr_trend,
                     init_trend: result.init_trend,
                     segmentation: result.segmentation.length,
                     upward_point: result.upward_point.length,
                     downward_point: result.downward_point.length,
-                    insight:insight,
+                    insight: insight,
                     prev_insight: prev_insight
                   }
-                  row['meta'] = JSON.stringify(meta);
-                  var train_set = [...rows].slice(rows.length - 59).concat([row]).filter((d) => d.meta);
-                  if(train_set.length == 60) {
-                    var train = [...train_set].map((d) => {
-                      let meta = JSON.parse(d.meta);
-                      return meta.insight.support - meta.insight.resist
+
+                  var train_short = short_ma.slice(i - 200, i).filter((d) => d);
+                  var train_long = long_ma.slice(i - 200, i).filter((d) => d);
+                  if (train_short.length == 200 && train_long.length == 200) {
+                    let train_set01 = train_short.map((d, j) => {
+                      var gap = d - train_long[j];
+                      return gap
                     })
-                    meta['train'] = train;
+                    meta['train_set01'] = train_set01;
                   }
+
+                  let train_set02 = data.slice(i - 200, i).map((_curr) => {
+                    var day_power = (_curr.close - _curr.open);
+                    var down_power = (_curr.high - Math.min(_curr.open, _curr.close));
+                    var up_power = (Math.max(_curr.open, _curr.close) - _curr.low);
+                    var power = up_power - down_power + day_power;
+                    return power * (_curr.volume / item.stock_total)
+                  })
+                  meta['train_set02'] = train_set02;
+
                   row['meta'] = JSON.stringify(meta);
-                  if(prev_insight.support + prev_insight.future_resist <= prev_insight.resist + prev_insight.future_support && insight.support + insight.future_resist >= insight.future_support + insight.resist && insight.support > insight.resist && prev_insight.support < prev_insight.resist && prev_insight.future_support < insight.future_support && prev_insight.resist > insight.resist) {
-                    if(!(long_ma[i - 2] > long_ma[i - 1] && long_ma[i - 1] > long_ma[i])) {
+                  if (prev_insight.support + prev_insight.future_resist <= prev_insight.resist + prev_insight.future_support && insight.support + insight.future_resist >= insight.future_support + insight.resist && insight.support > insight.resist && prev_insight.support < prev_insight.resist && prev_insight.future_support < insight.future_support && prev_insight.resist > insight.resist) {
+                    if (!(long_ma[i - 2] > long_ma[i - 1] && long_ma[i - 1] > long_ma[i])) {
                       row['marker'] = '매수';
                       let futures = data.slice(i, i + 60);
-                      if(futures.length == 60) {
+                      if (futures.length == 60) {
                         var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
                         var high_rate = max_point.high / row.close * 100;
                         row['result'] = high_rate;
                       }
-                      
                       recommended_rows.push(row)
                     }
                   }
@@ -141,18 +151,18 @@ module.exports = {
 
             rows.push(row);
           }
-          
-          if(rows.length > 0) {
-            if(rows.length > 100) {
+
+          if (rows.length > 0) {
+            if (rows.length > 100) {
               await connector.dao.StockData.batchInsert(rows);
             } else {
               await connector.dao.StockData.insert(rows).onConflict(['code', 'date']).merge();
             }
-          }         
+          }
 
-          if(recommended_rows.length > 0) {
+          if (recommended_rows.length > 0) {
             connector.dao.StockData.table_name = "stock_data";
-            if(recommended_rows.length > 100) {
+            if (recommended_rows.length > 100) {
               await connector.dao.StockData.batchInsert(recommended_rows);
             } else {
               await connector.dao.StockData.insert(recommended_rows).onConflict(['code', 'date']).merge();
