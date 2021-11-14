@@ -100,6 +100,12 @@ module.exports = {
                 let insight = analysis.cross_point(result, row);
 
                 if (prev_insight) {
+                  let _curr = data[i];
+                  let day_power = (_curr.close - _curr.open);
+                  let down_power = (_curr.high - Math.min(_curr.open, _curr.close));
+                  let up_power = (Math.max(_curr.open, _curr.close) - _curr.low);
+                  let power = up_power - down_power + day_power;
+
                   let meta = {
                     curr_trend: result.curr_trend,
                     init_trend: result.init_trend,
@@ -107,29 +113,13 @@ module.exports = {
                     upward_point: result.upward_point.length,
                     downward_point: result.downward_point.length,
                     insight: insight,
-                    prev_insight: prev_insight
+                    prev_insight: prev_insight,
+                    power: power * (_curr.volume / item.stock_total),
+                    short: short_ma[i],
+                    long: long_ma[i]
                   }
-
-                  var train_short = short_ma.slice(i - 200, i).filter((d) => d);
-                  var train_long = long_ma.slice(i - 200, i).filter((d) => d);
-                  if (train_short.length == 200 && train_long.length == 200) {
-                    let train_set01 = train_short.map((d, j) => {
-                      var gap = d - train_long[j];
-                      return gap
-                    })
-                    meta['train_set01'] = train_set01;
-                  }
-
-                  let train_set02 = data.slice(i - 200, i).map((_curr) => {
-                    var day_power = (_curr.close - _curr.open);
-                    var down_power = (_curr.high - Math.min(_curr.open, _curr.close));
-                    var up_power = (Math.max(_curr.open, _curr.close) - _curr.low);
-                    var power = up_power - down_power + day_power;
-                    return power * (_curr.volume / item.stock_total)
-                  })
-                  meta['train_set02'] = train_set02;
-
                   row['meta'] = JSON.stringify(meta);
+
                   if (prev_insight.support + prev_insight.future_resist <= prev_insight.resist + prev_insight.future_support && insight.support + insight.future_resist >= insight.future_support + insight.resist && insight.support > insight.resist && prev_insight.support < prev_insight.resist && prev_insight.future_support < insight.future_support && prev_insight.resist > insight.resist) {
                     if (!(long_ma[i - 2] > long_ma[i - 1] && long_ma[i - 1] > long_ma[i])) {
                       row['marker'] = '매수';
@@ -139,6 +129,26 @@ module.exports = {
                         var high_rate = max_point.high / row.close * 100;
                         row['result'] = high_rate;
                       }
+
+                      var train_short = short_ma.slice(i - 120, i).filter((d) => d);
+                      var train_long = long_ma.slice(i - 120, i).filter((d) => d);
+                      if (train_short.length == 120 && train_long.length == 120) {
+                        let train_set01 = train_short.map((d, j) => {
+                          var gap = d - train_long[j];
+                          return gap
+                        })
+                        meta['train_set01'] = train_set01;
+                      }
+
+                      let train_set02 = data.slice(i - 120, i).map((_curr) => {
+                        var day_power = (_curr.close - _curr.open);
+                        var down_power = (_curr.high - Math.min(_curr.open, _curr.close));
+                        var up_power = (Math.max(_curr.open, _curr.close) - _curr.low);
+                        var power = up_power - down_power + day_power;
+                        return power * (_curr.volume / item.stock_total)
+                      })
+                      meta['train_set02'] = train_set02;
+                      row['meta'] = JSON.stringify(meta);
                       recommended_rows.push(row)
                     }
                   }
