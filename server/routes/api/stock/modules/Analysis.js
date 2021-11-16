@@ -109,10 +109,12 @@ function cross_point(result, pick) {
   let cross = []
   result.upward_point.forEach((up, up_idx) => {
     result.downward_point.forEach((down, down_idx) => {
-      var test = getLineIntersect(up, up.diff / 86400000, down, down.diff / 86400000);
-      var std = up.date > down.date ? up : down;
-      if (test.close > result.segmentation[std.seg_idx].min.low && result.segmentation[std.seg_idx].max.high > test.close) {
-        cross.push(test);
+      if (up.seg_idx > 0 && down.seg_idx > 0) {
+        var test = getLineIntersect(up, up.diff / 86400000, down, down.diff / 86400000);
+        var std = up.date > down.date ? up : down;
+        if (test.close > result.segmentation[std.seg_idx].min.low && result.segmentation[std.seg_idx].max.high > test.close) {
+          cross.push(test);
+        }
       }
     })
   });
@@ -133,10 +135,10 @@ function cross_point(result, pick) {
   })
 
   return {
-    resist:resist.length,
+    resist: resist.length,
     support: support.length,
-    future_resist:future_resist.length,
-    future_support:future_support.length
+    future_resist: future_resist.length,
+    future_support: future_support.length
   }
 }
 

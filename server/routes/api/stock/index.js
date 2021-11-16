@@ -5,7 +5,8 @@ const SMA = require('technicalindicators').SMA
 
 const cliProgress = require('cli-progress');
 
-const dfd = require("danfojs-node")
+const dfd = require("danfojs-node");
+const { segmentation } = require('./modules/Analysis');
 
 module.exports = {
   get: {
@@ -74,6 +75,7 @@ module.exports = {
           var item = stockList[step];
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
 
+          let metadata = [];
           let rows = [];
           let recommended_rows = []
           const data = await collector.getSise(item.stock_code, days);
@@ -83,7 +85,7 @@ module.exports = {
 
           let short_ma = new Array(19).concat(short.result)
           let long_ma = new Array(59).concat(long.result)
-          let prev_insight;
+          let prev_result;
           for (let i = 0; i < data.length; i++) {
             let row = data[i];
             row['code'] = item.stock_code;
@@ -93,18 +95,42 @@ module.exports = {
               var up_power = (Math.max(row.open, row.close) - row.low);
               var power = (up_power - down_power + day_power) * (row.volume / item.stock_total);
 
-              if (long_ma[i - 2]) {
-                let result = {
-                  curr_trend: 0,
-                  init_trend: 0,
-                  segmentation: [],
-                  upward_point: [],
-                  downward_point: [],
-                };
-                analysis.segmentation([...data].splice(0, i + 1), result);
-                let insight = analysis.cross_point(result, row);
+              let result = {
+                curr_trend: 0,
+                init_trend: 0,
+                segmentation: [],
+                upward_point: [],
+                downward_point: [],
+              };
+              analysis.segmentation([...data].splice(0, i + 1), result);
+              result.segmentation.sort((a, b) => a.from.date - b.from.date)
+              let insight = analysis.cross_point(result, row);
+              result['insight'] = insight
+              metadata.push(result);
+              const period = 5
 
-                if (prev_insight) {
+              if (long_ma[i - 2] && metadata.length >= period) {
+                const short_mean_arr = metadata.slice(i - (period - 1), i + 1);
+
+                const support_arr = short_mean_arr.map((d) => d.insight.support);
+                const resist_arr = short_mean_arr.map((d) => d.insight.resist);
+                const future_support_arr = short_mean_arr.map((d) => d.insight.future_support);
+                const future_resist_arr = short_mean_arr.map((d) => d.insight.future_resist);
+                insight.support = _.mean(support_arr);
+                insight.resist = _.mean(resist_arr);
+                insight.future_support = _.mean(future_support_arr);
+                insight.future_resist = _.mean(future_resist_arr);
+
+                // let scaler = new dfd.StandardScaler();
+                // let df = new dfd.DataFrame([result.upward_point.length, result.downward_point.length, insight.support, insight.resist, insight.future_support, insight.future_resist]);
+                // scaler.fit(df)
+                // let df_enc = scaler.transform(df)
+                // insight.support = df_enc.values[2];
+                // insight.resist = df_enc.values[3];
+                // insight.future_support = df_enc.values[4];
+                // insight.future_resist = df_enc.values[5];
+
+                if (prev_result) {
                   let meta = {
                     curr_trend: result.curr_trend,
                     init_trend: result.init_trend,
@@ -112,29 +138,45 @@ module.exports = {
                     upward_point: result.upward_point.length,
                     downward_point: result.downward_point.length,
                     insight: insight,
-                    prev_insight: prev_insight,
                     power: power,
                     short: short_ma[i],
                     long: long_ma[i]
                   }
+
                   row['meta'] = JSON.stringify(meta);
 
-                  if (prev_insight.support + prev_insight.future_resist <= prev_insight.resist + prev_insight.future_support && insight.support + insight.future_resist >= insight.future_support + insight.resist && insight.support > insight.resist && prev_insight.support < prev_insight.resist && prev_insight.future_support < insight.future_support && prev_insight.resist > insight.resist) {
-                    if (!(long_ma[i - 2] > long_ma[i - 1] && long_ma[i - 1] > long_ma[i])) {
+
+                  if (insight.support > insight.resist && prev_result.insight.support < prev_result.insight.resist && prev_result.insight.resist > insight.resist && prev_result.insight.support < insight.support && insight.resist + insight.future_support < insight.future_resist + insight.support && prev_result.insight.resist + prev_result.insight.future_support > prev_result.insight.future_resist + prev_result.insight.support && prev_result.insight.resist > result.insight.resist) {
+                    row['marker'] = '매수';
+                    let futures = data.slice(i + 1, i + 61);
+                    if (futures.length == 60) {
+                      var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
+                      var high_rate = max_point.high / row.close * 100;
+                      row['result'] = high_rate;
+                    }
+
+                    row['meta'] = JSON.stringify(meta);
+                    recommended_rows.push(row)
+                  }
+
+
+                  /*
+                  if(insight.support < insight.resist && prev_result.insight.support > prev_result.insight.resist && prev_result.insight.resist < insight.resist) {
+                    if((prev_result.insight.future_resist != result.insight.future_resist) || (prev_result.insight.future_support != result.insight.future_support)) {
                       row['marker'] = '매수';
-                      let futures = data.slice(i, i + 60);
-                      if (futures.length == 60) {
+                      let futures = data.slice(i + 1, i + 21);
+                      if (futures.length == 20) {
                         var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
                         var high_rate = max_point.high / row.close * 100;
                         row['result'] = high_rate;
                       }
-
                       row['meta'] = JSON.stringify(meta);
                       recommended_rows.push(row)
                     }
                   }
+                  */
                 }
-                prev_insight = insight;
+                prev_result = result;
               }
             } catch (error) {
               console.log(error)
