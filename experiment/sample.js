@@ -94,7 +94,7 @@ Database({
 
 
       let scaler = new dfd.StandardScaler()
-      let df = new dfd.DataFrame([meta.insight.support, meta.insight.resist, meta.insight.future_support, meta.insight.future_resist])
+      let df = new dfd.DataFrame(meta.train)
       scaler.fit(df)
       let df_enc = scaler.transform(df);
 

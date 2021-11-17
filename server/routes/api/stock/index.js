@@ -2,11 +2,14 @@ const collector = require('./modules/NaverFinance');
 const analysis = require('./modules/Analysis');
 const connector = require('../../../connector');
 const SMA = require('technicalindicators').SMA
+const BB = require('technicalindicators').BollingerBands;
+const CLOUD = require('technicalindicators').IchimokuCloud
 
 const cliProgress = require('cli-progress');
 
 const dfd = require("danfojs-node");
 const { segmentation } = require('./modules/Analysis');
+const { IchimokuCloud } = require('technicalindicators');
 
 module.exports = {
   get: {
@@ -74,20 +77,17 @@ module.exports = {
         if (step < stockList.length) {
           var item = stockList[step];
           connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
-
           let metadata = [];
           let rows = [];
           let recommended_rows = []
           const data = await collector.getSise(item.stock_code, days);
-          const close_arr = data.map((d) => d.close)
-          let short = new SMA({ period: 20, values: close_arr });
-          let long = new SMA({ period: 60, values: close_arr });
-
-          let short_ma = new Array(19).concat(short.result)
-          let long_ma = new Array(59).concat(long.result)
+          
+          const origin_data = await connector.dao.StockData.getTable().where('date', '<', data[0].date);
+          
+          const all_data = origin_data.concat(data);
           let prev_result;
-          for (let i = 0; i < data.length; i++) {
-            let row = data[i];
+          for (let i = all_data.length - data.length; i < all_data.length; i++) {
+            let row = all_data[i];
             row['code'] = item.stock_code;
             try {
               var day_power = (row.close - row.open);
@@ -102,14 +102,26 @@ module.exports = {
                 upward_point: [],
                 downward_point: [],
               };
-              analysis.segmentation([...data].splice(0, i + 1), result);
-              result.segmentation.sort((a, b) => a.from.date - b.from.date)
+              analysis.segmentation([...all_data].splice(0, i + 1), result);
               let insight = analysis.cross_point(result, row);
               result['insight'] = insight
               metadata.push(result);
-              const period = 5
+              const period = 5;
+              
+              result.segmentation.sort((a, b) => a.from.date - b.from.date)
 
-              if (long_ma[i - 2] && metadata.length >= period) {
+              let clouds = new IchimokuCloud({
+                high: [...all_data].splice(0, i + 1).map((d) => d.high),
+                low: [...all_data].splice(0, i + 1).map((d) => d.low),
+                conversionPeriod: 9,
+                basePeriod: 26,
+                spanPeriod: 52,
+                displacement: 26
+              }).result;
+    
+              let cloud_data = new Array(77).concat(clouds)
+
+              if (metadata.length >= period) {
                 const short_mean_arr = metadata.slice(i - (period - 1), i + 1);
 
                 const support_arr = short_mean_arr.map((d) => d.insight.support);
@@ -121,15 +133,6 @@ module.exports = {
                 insight.future_support = _.mean(future_support_arr);
                 insight.future_resist = _.mean(future_resist_arr);
 
-                // let scaler = new dfd.StandardScaler();
-                // let df = new dfd.DataFrame([result.upward_point.length, result.downward_point.length, insight.support, insight.resist, insight.future_support, insight.future_resist]);
-                // scaler.fit(df)
-                // let df_enc = scaler.transform(df)
-                // insight.support = df_enc.values[2];
-                // insight.resist = df_enc.values[3];
-                // insight.future_support = df_enc.values[4];
-                // insight.future_resist = df_enc.values[5];
-
                 if (prev_result) {
                   let meta = {
                     curr_trend: result.curr_trend,
@@ -138,17 +141,38 @@ module.exports = {
                     upward_point: result.upward_point.length,
                     downward_point: result.downward_point.length,
                     insight: insight,
-                    power: power,
-                    short: short_ma[i],
-                    long: long_ma[i]
+                    power: power
                   }
+
+                  /*
+                    spanA > spanB 양운
+                    spanA < spanB 음운
+                    conversion 전환선
+                    base 기준선
+                  */
+                  meta['cloud'] = cloud_data[cloud_data.length - 27]
+
+                  // 미래 구름
+                  let future_conversion = 0;
+                  let future_trend = 0;
+                  let train = [];
+                  for(var c = 26; c > 0; c--) {
+                    const future_cloud = cloud_data[cloud_data.length - c];
+                    if(future_cloud) {
+                      future_trend += (future_cloud.spanA - future_cloud.spanB)
+                      future_conversion += future_cloud.conversion;
+                      train.push((future_cloud.spanA - future_cloud.spanB))
+                    }
+                  }
+                  meta['future_trend'] = future_trend / 26;
+                  meta['future_conversion'] = future_conversion / 26;
+                  meta['train'] = train;
 
                   row['meta'] = JSON.stringify(meta);
 
-
-                  if (insight.support > insight.resist && prev_result.insight.support < prev_result.insight.resist && prev_result.insight.resist > insight.resist && prev_result.insight.support < insight.support && insight.resist + insight.future_support < insight.future_resist + insight.support && prev_result.insight.resist + prev_result.insight.future_support > prev_result.insight.future_resist + prev_result.insight.support && prev_result.insight.resist > result.insight.resist) {
+                  if (insight.support > insight.resist && prev_result.insight.support < prev_result.insight.resist && prev_result.insight.resist > insight.resist && prev_result.insight.support < insight.support && insight.resist + insight.future_support < insight.future_resist + insight.support && prev_result.insight.resist + prev_result.insight.future_support > prev_result.insight.future_resist + prev_result.insight.support) {
                     row['marker'] = '매수';
-                    let futures = data.slice(i + 1, i + 61);
+                    let futures = all_data.slice(i + 1, i + 61);
                     if (futures.length == 60) {
                       var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
                       var high_rate = max_point.high / row.close * 100;
@@ -158,23 +182,6 @@ module.exports = {
                     row['meta'] = JSON.stringify(meta);
                     recommended_rows.push(row)
                   }
-
-
-                  /*
-                  if(insight.support < insight.resist && prev_result.insight.support > prev_result.insight.resist && prev_result.insight.resist < insight.resist) {
-                    if((prev_result.insight.future_resist != result.insight.future_resist) || (prev_result.insight.future_support != result.insight.future_support)) {
-                      row['marker'] = '매수';
-                      let futures = data.slice(i + 1, i + 21);
-                      if (futures.length == 20) {
-                        var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
-                        var high_rate = max_point.high / row.close * 100;
-                        row['result'] = high_rate;
-                      }
-                      row['meta'] = JSON.stringify(meta);
-                      recommended_rows.push(row)
-                    }
-                  }
-                  */
                 }
                 prev_result = result;
               }
@@ -210,6 +217,21 @@ module.exports = {
       }
       nextStep(0);
       res.status(200).send('OK');
+    },
+    "test": async(req,res,next) => {
+      connector.dao.StockData.table_name = "stock_data";
+      const origin_data = await connector.dao.StockData.select();
+
+      const data = origin_data.map((d) => {
+        d['meta'] = JSON.parse(d.meta)
+        return d;
+      }).filter((d) => {
+        return d.meta.future_trend > 0
+      })
+
+      console.log(data.length, data.filter((d) => d.result > 105).map((d) => d.result).length, origin_data.length)
+
+      res.status(200).send('OK')
     }
   }
 }
