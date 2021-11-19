@@ -122,9 +122,20 @@ module.exports = {
                   result.upward_point.sort((a, b) => a.date - b.date)
                   result.downward_point.sort((a, b) => a.date - b.date)
 
+                  let meta = {
+                    curr_trend: result.curr_trend,
+                    init_trend: result.init_trend,
+                    segmentation: result.segmentation.length,
+                    upward_point: result.upward_point.length,
+                    downward_point: result.downward_point.length,
+                    insight: insight,
+                    power: power
+                  };
+
+
                   let clouds = new IchimokuCloud({
-                    high: [...all_data].slice(i - 78, i).map((d) => d.high),
-                    low: [...all_data].slice(i - 78, i).map((d) => d.low),
+                    high: [...all_data].slice(i - 77, i).map((d) => d.high),
+                    low: [...all_data].slice(i - 77, i).map((d) => d.low),
                     conversionPeriod: 9,
                     basePeriod: 26,
                     spanPeriod: 52,
@@ -136,26 +147,34 @@ module.exports = {
                     stdDev: 2,
                     values: [...all_data].slice(i - 20, i).map((d) => d.close),
                   }).result
+                  if (bands.length > 0) {
+                    let band_data = bands;
+                    meta['band'] = band_data[0];
+                  }
 
-                  let band_data = bands
-                  let cloud_data = clouds;
-                  let meta = {
-                    curr_trend: result.curr_trend,
-                    init_trend: result.init_trend,
-                    segmentation: result.segmentation.length,
-                    upward_point: result.upward_point.length,
-                    downward_point: result.downward_point.length,
-                    insight: insight,
-                    power: power
-                  };
-                  meta['cloud'] = {
-                    spanA: clouds[0].spanA,
-                    spanB: clouds[0].spanB,
-                    conversion: clouds[clouds.length - 1].conversion,
-                    base: clouds[clouds.length - 1].base,
-                  };
-                  meta['band'] = band_data[0];
+                  if (clouds.length > 0) {
+                    let cloud_data = clouds;
+                    meta['cloud'] = {
+                      spanA: clouds[0].spanA,
+                      spanB: clouds[0].spanB,
+                      conversion: clouds[clouds.length - 1].conversion,
+                      base: clouds[clouds.length - 1].base,
+                    };
 
+                    // 미래 구름
+                    let future_spanA = 0;
+                    let future_spanB = 0;
+
+                    for (var c = 1; c < cloud_data.length; c++) {
+                      const future_cloud = cloud_data[c];
+                      if (future_cloud) {
+                        future_spanA += future_cloud.spanA
+                        future_spanB += future_cloud.spanB
+                      }
+                    }
+                    meta['future_spanA'] = future_spanA / 26;
+                    meta['future_spanB'] = future_spanB / 26;
+                  }
                   /*
                     spanA > spanB 양운
                     spanA < spanB 음운
@@ -163,22 +182,7 @@ module.exports = {
                     base 기준선
                   */
 
-                  // 미래 구름
-                  let future_spanA = 0;
-                  let future_spanB = 0;
-                  for (var c = 1; c < cloud_data.length; c++) {
-                    const future_cloud = cloud_data[c];
-                    if (future_cloud) {
-                      future_spanA += future_cloud.spanA
-                      future_spanB += future_cloud.spanB
-                    }
-                  }
-                  meta['future_spanA'] = future_spanA / 26;
-                  meta['future_spanB'] = future_spanB / 26;
-
                   result['meta'] = meta;
-
-                  row['meta'] = JSON.stringify(meta);
 
                   if (meta.cloud && prev_result) {
                     if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && !(Math.min(meta.cloud.spanA, meta.cloud.spanB) > row.close) && meta.band.lower < row.close && meta.cloud.spanA < meta.future_spanA) {
@@ -197,6 +201,8 @@ module.exports = {
                       recommended_rows.push(row)
                     }
                   }
+
+                  row['meta'] = JSON.stringify(meta);
                   prev_result = result;
 
                 } catch (error) {
