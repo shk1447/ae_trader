@@ -148,7 +148,12 @@ module.exports = {
                     insight: insight,
                     power: power
                   };
-                  meta['cloud'] = cloud_data[0];
+                  meta['cloud'] = {
+                    spanA: clouds[0].spanA,
+                    spanB: clouds[0].spanB,
+                    conversion: clouds[clouds.length - 1].conversion,
+                    base: clouds[clouds.length - 1].base,
+                  };
                   meta['band'] = band_data[0];
 
                   /*
@@ -159,52 +164,32 @@ module.exports = {
                   */
 
                   // 미래 구름
-                  let future_conversion = 0;
-                  let future_base = 0;
-                  let future_trend = 0;
+                  let future_spanA = 0;
+                  let future_spanB = 0;
                   for (var c = 1; c < cloud_data.length; c++) {
                     const future_cloud = cloud_data[c];
                     if (future_cloud) {
-                      future_trend += (future_cloud.spanA - future_cloud.spanB)
-                      future_conversion += future_cloud.conversion;
-                      future_base += future_cloud.base;
+                      future_spanA += future_cloud.spanA
+                      future_spanB += future_cloud.spanB
                     }
                   }
-                  meta['future_trend'] = future_trend / 26;
-                  meta['future_conversion'] = future_conversion / 26;
-                  meta['future_base'] = future_base / 26;
+                  meta['future_spanA'] = future_spanA / 26;
+                  meta['future_spanB'] = future_spanB / 26;
 
                   result['meta'] = meta;
 
                   row['meta'] = JSON.stringify(meta);
 
-                  if (prev_result) {
-                    if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && !((meta.cloud.spanA - meta.cloud.spanB) < 0 && meta.cloud.spanB > row.close) && meta.band.lower < row.close) {
+                  if (meta.cloud && prev_result) {
+                    if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && !(Math.min(meta.cloud.spanA, meta.cloud.spanB) > row.close) && meta.band.lower < row.close && meta.cloud.spanA < meta.future_spanA) {
                       row['marker'] = '매수';
                       let futures = all_data.slice(i + 1, i + 61);
                       if (futures.length == 60) {
-                        var buy = undefined;
-                        var sell = undefined;
-                        [...futures].forEach((d) => {
-                          if (!buy && d.low < meta.band.lower && d.close > meta.band.lower) {
-                            buy = d.close
-                          }
-                          if (buy && d.high > buy * 1.05) {
-                            sell = d.high
-                          }
-                        })
-                        // var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
-                        // var high_rate = max_point.high / row.close * 100;
-                        if (sell && buy) {
-                          row['result'] = sell / buy * 100;
-                        }
 
-                        if (buy && !sell) {
-                          row['result'] = "매도 실패"
-                        }
-
-                        if (!buy) {
-                          row['result'] = "매수 실패"
+                        var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
+                        var high_rate = max_point.high / row.close * 100;
+                        if (high_rate > 105) {
+                          row['result'] = high_rate
                         }
                       }
 
@@ -222,7 +207,7 @@ module.exports = {
               }
 
               if (rows.length > 0) {
-                if (rows.length > 100) {
+                if (rows.length > 50) {
                   await connector.dao.StockData.batchInsert(rows);
                 } else {
                   await connector.dao.StockData.insert(rows).onConflict(['code', 'date']).merge();
@@ -231,7 +216,7 @@ module.exports = {
 
               if (recommended_rows.length > 0) {
                 connector.dao.StockData.table_name = "stock_data";
-                if (recommended_rows.length > 100) {
+                if (recommended_rows.length > 50) {
                   await connector.dao.StockData.batchInsert(recommended_rows);
                 } else {
                   await connector.dao.StockData.insert(recommended_rows).onConflict(['code', 'date']).merge();
