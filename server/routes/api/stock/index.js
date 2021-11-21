@@ -246,21 +246,11 @@ module.exports = {
       const stockData = new connector.types.StockData(connector.database);
       const origin_data = await stockData.select(query)
 
-      res.status(200).send(origin_data.map((d) => {
-        d.meta = JSON.parse(d.meta)
-        return d
-      }))
+      // 관심 종목 제공
+      res.status(200).send('OK')
     },
-    "test": async (req, res, next) => {
-      const stockData = new connector.types.StockData(connector.database);
-      const origin_data = await stockData.select()
-
-      const data = origin_data.map((d) => {
-        d['meta'] = JSON.parse(d.meta)
-        return d;
-      })
-
-      console.log(data.length, data.filter((d) => d.result > 105).map((d) => d.result).length, origin_data.length)
+    "status": async (req, res, next) => {
+      // 최종 매매에 대한 결정 제공
 
       res.status(200).send('OK')
     }
