@@ -30,22 +30,26 @@ module.exports = function () {
                             var row = {};
                             var header = ["date", "close", "gap", "open", "high", "low", "volume"]
 
-                            for (var index = 0; index < nodes.length; index++) {
-                                var row_num = parseInt(index / 7);
-                                if (page_num === num && row_num > (remain_row - 1)) {
-                                    break;
-                                }
-                                // 날짜, 종가, 전일비, 시가, 고가, 저가, 거래량
-                                var i = index % 7;
-                                var node = nodes[index];
-                                if (i == 2) continue;
-                                row[header[i]] = header[i] == 'date' ? new Date(node.firstChild.data.replace(/\n/gi, "").replace(/\t/gi, "").replace(/,/gi, "")).getTime() : parseInt(node.firstChild.data.replace(/\n/gi, "").replace(/\t/gi, "").replace(/,/gi, ""));
-                                if (i === 6) {
-                                    if (row['volume'] > 0 && row['open'] > 0) {
-                                        rows.unshift(row);
+                            try {
+                                for (var index = 0; index < nodes.length; index++) {
+                                    var row_num = parseInt(index / 7);
+                                    if (page_num === num && row_num > (remain_row - 1)) {
+                                        break;
                                     }
-                                    row = {};
+                                    // 날짜, 종가, 전일비, 시가, 고가, 저가, 거래량
+                                    var i = index % 7;
+                                    var node = nodes[index];
+                                    if (i == 2) continue;
+                                    row[header[i]] = header[i] == 'date' ? new Date(node.firstChild.data.replace(/\n/gi, "").replace(/\t/gi, "").replace(/,/gi, "")).getTime() : parseInt(node.firstChild.data.replace(/\n/gi, "").replace(/\t/gi, "").replace(/,/gi, ""));
+                                    if (i === 6) {
+                                        if (row['volume'] > 0 && row['open'] > 0) {
+                                            rows.unshift(row);
+                                        }
+                                        row = {};
+                                    }
                                 }
+                            } catch (error) {
+
                             }
 
                             num++

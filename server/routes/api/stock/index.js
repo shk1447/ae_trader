@@ -129,7 +129,8 @@ module.exports = {
                     upward_point: result.upward_point.length,
                     downward_point: result.downward_point.length,
                     insight: insight,
-                    power: power
+                    power: power,
+                    date: moment(row.date).format('YYYY-MM-DD')
                   };
 
 
@@ -152,6 +153,7 @@ module.exports = {
                     meta['band'] = band_data[0];
                   }
 
+                  var isConversion = false;
                   if (clouds.length > 0) {
                     let cloud_data = clouds;
                     meta['cloud'] = {
@@ -184,12 +186,12 @@ module.exports = {
 
                   result['meta'] = meta;
 
-                  if (meta.cloud && prev_result) {
-                    if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && !(Math.min(meta.cloud.spanA, meta.cloud.spanB) > row.close) && meta.band.lower < row.close && meta.cloud.spanA < meta.future_spanA) {
+                  if (prev_result) {
+                    // prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && !(Math.min(meta.cloud.spanA, meta.cloud.spanB) > row.close) && meta.band.lower < row.close && meta.cloud.spanA < meta.future_spanA
+                    if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && (prev_result.meta.insight.future_resist != insight.future_resist || prev_result.meta.insight.future_support != insight.future_support) && prev_result.meta.insight.resist > insight.resist) {
                       row['marker'] = '매수';
-                      let futures = all_data.slice(i + 1, i + 61);
-                      if (futures.length == 60) {
-
+                      let futures = all_data.slice(i + 1, i + 11);
+                      if (futures.length == 10) {
                         var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
                         var high_rate = max_point.high / row.close * 100;
                         if (high_rate > 105) {
@@ -247,12 +249,22 @@ module.exports = {
       const origin_data = await stockData.select(query)
 
       // 관심 종목 제공
-      res.status(200).send('OK')
+      res.status(200).send(origin_data.map((d) => d.code))
     },
     "status": async (req, res, next) => {
       // 최종 매매에 대한 결정 제공
 
       res.status(200).send('OK')
-    }
+    },
+    "test": async (req, res, next) => {
+      // 최종 매매에 대한 결정 제공
+      const stockData = new connector.types.StockData(connector.database);
+      const origin_data = await stockData.select()
+
+      var good_list = origin_data.filter((d) => d.result > 105)
+
+      console.log(good_list.length, origin_data.length, _.mean(good_list.map((d) => d.result)))
+      res.status(200).send('OK')
+    },
   }
 }
