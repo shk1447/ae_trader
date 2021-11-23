@@ -110,8 +110,8 @@ function cross_point(result, pick, key) {
   result.upward_point.forEach((up, up_idx) => {
     result.downward_point.forEach((down, down_idx) => {
       var test = getLineIntersect(up, up.diff / 86400000, down, down.diff / 86400000, key);
-      var std = up.date > down.date ? up : down;
-      var std_idx = std.seg_idx > 0 ? (std.seg_idx - 1) : 0;
+      var std = up.date < down.date ? up : down;
+      var std_idx = std.seg_idx;
       if (test[key] > result.segmentation[std_idx].min.low && result.segmentation[std_idx].max.high > test[key]) {
         cross.push(test);
       }
@@ -133,8 +133,8 @@ function cross_point(result, pick, key) {
     return d[key] <= pick[key] && moment(pick.date) <= moment(d.date)
   })
 
-  var resist_price = _.mean([...resist, ...future_resist].map((d) => d.close))
-  var support_price = _.mean([...support, ...future_support].map((d) => d.close))
+  var resist_price = _.mean([...resist].map((d) => d.close))
+  var support_price = _.mean([...support].map((d) => d.close))
 
   return {
     resist: resist.length,

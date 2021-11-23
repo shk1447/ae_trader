@@ -7,7 +7,7 @@ const moment = require('moment');
 
 const dfd = require("danfojs-node");
 const { segmentation } = require('./modules/Analysis');
-const { IchimokuCloud, BollingerBands, OBV } = require('technicalindicators');
+const { IchimokuCloud, BollingerBands, OBV, SMA } = require('technicalindicators');
 
 let collecting = false;
 module.exports = {
@@ -133,6 +133,8 @@ module.exports = {
                     date: moment(row.date).format('YYYY-MM-DD')
                   };
 
+                  var short_ma = new SMA({ period: 20, values: [...all_data].slice(i - 20, i).map((d) => d.close) }).result
+                  var long_ma = new SMA({ period: 60, values: [...all_data].slice(i - 60, i).map((d) => d.close) }).result
 
                   let clouds = new IchimokuCloud({
                     high: [...all_data].slice(i - 77, i).map((d) => d.high),
@@ -153,7 +155,6 @@ module.exports = {
                     meta['band'] = band_data[0];
                   }
 
-                  var isConversion = false;
                   if (clouds.length > 0) {
                     let cloud_data = clouds;
                     meta['cloud'] = {
@@ -166,17 +167,35 @@ module.exports = {
                     // 미래 구름
                     let future_spanA = 0;
                     let future_spanB = 0;
+                    let orgs = [...all_data].slice(i - 26, i);
 
-                    for (var c = 1; c < cloud_data.length; c++) {
-                      const future_cloud = cloud_data[c];
-                      if (future_cloud) {
-                        future_spanA += future_cloud.spanA
-                        future_spanB += future_cloud.spanB
-                      }
-                    }
-                    meta['future_spanA'] = future_spanA / 26;
-                    meta['future_spanB'] = future_spanB / 26;
+                    var new_arr = cloud_data.map((d, i) => {
+                      const newObj = { ...d, ...orgs[i] }
+                      return newObj
+                    })
+
+                    new_arr.reduce((prev, curr) => {
+                      const lower = Math.min(prev.low, curr.low);
+                      const higher = Math.max(prev.high, curr.high);
+                      const closer = Math.max(prev.close, curr.close);
+
+                      return curr
+                    })
+
+                    // for (var c = 1; c < cloud_data.length; c++) {
+                    //   const future_cloud = cloud_data[c];
+                    //   if (future_cloud) {
+                    //     future_spanA += future_cloud.spanA
+                    //     future_spanB += future_cloud.spanB
+                    //   }
+                    // }
+                    // meta['future_spanA'] = future_spanA / 26;
+                    // meta['future_spanB'] = future_spanB / 26;
                   }
+                  // meta['up_count'] = up_count;
+                  // meta['down_count'] = down_count;
+                  // meta['conv_count'] = conv_count;
+                  // meta['future_conv'] = future_conv;
                   /*
                     spanA > spanB 양운
                     spanA < spanB 음운
@@ -187,19 +206,17 @@ module.exports = {
                   result['meta'] = meta;
 
                   if (prev_result) {
-                    // prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && !(Math.min(meta.cloud.spanA, meta.cloud.spanB) > row.close) && meta.band.lower < row.close && meta.cloud.spanA < meta.future_spanA
-                    if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && (prev_result.meta.insight.future_resist != insight.future_resist || prev_result.meta.insight.future_support != insight.future_support) && prev_result.meta.insight.resist > insight.resist) {
+                    // if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && (prev_result.meta.insight.future_resist != insight.future_resist || prev_result.meta.insight.future_support != insight.future_support) && prev_result.meta.insight.resist > insight.resist) {
+                    if (!prev_result.meta.insight.support_price && insight.support_price && (insight.support + insight.future_resist) > (insight.future_support + insight.resist)) {
                       row['marker'] = '매수';
-                      let futures = all_data.slice(i + 1, i + 11);
-                      if (futures.length == 10) {
+                      let futures = all_data.slice(i + 1, i + 61);
+                      if (futures.length == 60) {
                         var max_point = [...futures].sort((a, b) => b.high - a.high)[0];
                         var high_rate = max_point.high / row.close * 100;
-                        if (high_rate > 105) {
-                          row['result'] = high_rate
-                        }
-                      }
 
-                      // row['meta'] = JSON.stringify(meta);
+                        row['result'] = high_rate
+
+                      }
                       recommended_rows.push(row)
                     }
                   }
@@ -262,9 +279,10 @@ module.exports = {
       const origin_data = await stockData.select()
 
       var good_list = origin_data.filter((d) => d.result > 105)
+      var bad_list = origin_data.filter((d) => d.result < 105)
 
-      console.log(good_list.length, origin_data.length, _.mean(good_list.map((d) => d.result)))
-      res.status(200).send('OK')
+      console.log(good_list.length, origin_data.map((d) => d.result).length, _.mean(bad_list.map((d) => d.result)))
+      res.status(200).send(bad_list.map((d) => d.code))
     },
   }
 }
