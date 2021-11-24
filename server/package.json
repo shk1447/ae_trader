@@ -24,6 +24,7 @@
     "cookie-parser": "^1.4.5",
     "copy-webpack-plugin": "^4.5.3",
     "cors": "^2.8.5",
+    "cron": "^1.8.2",
     "crypto": "^1.0.1",
     "csv-parser": "^2.3.2",
     "danfojs-node": "^0.3.3",
