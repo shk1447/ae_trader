@@ -305,7 +305,7 @@ module.exports = {
           if(auto) {
             res.status(200).send(result)
           } else {
-            res.status(200).send(result.filter((d) => d.isBuy && d.status))
+            res.status(200).send(result.filter((d) => d.isBuy))
           }
         }
       }
