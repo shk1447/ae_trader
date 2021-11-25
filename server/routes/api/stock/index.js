@@ -43,29 +43,29 @@ module.exports = {
       res.status(200).send('OK');
     },
     "clear": async (req, res, next) => {
-      if (!collecting) {
-        const stockList = await connector.dao.StockList.select({});
+      // if (!collecting) {
+      //   const stockList = await connector.dao.StockList.select({});
 
-        connector.dao.StockData.table_name = "stock_data";
-        await connector.dao.StockData.truncate();
+      //   connector.dao.StockData.table_name = "stock_data";
+      //   await connector.dao.StockData.truncate();
 
-        const progress_bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-        progress_bar.start(stockList.length, 0);
+      //   const progress_bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+      //   progress_bar.start(stockList.length, 0);
 
-        const nextStep = async (step) => {
-          if (step < stockList.length) {
-            var item = stockList[step];
-            connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
-            await connector.dao.StockData.truncate();
+      //   const nextStep = async (step) => {
+      //     if (step < stockList.length) {
+      //       var item = stockList[step];
+      //       connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
+      //       await connector.dao.StockData.truncate();
 
-            progress_bar.update(step + 1);
-            nextStep(step + 1);
-          } else {
-            progress_bar.stop();
-          }
-        }
-        nextStep(0);
-      }
+      //       progress_bar.update(step + 1);
+      //       nextStep(step + 1);
+      //     } else {
+      //       progress_bar.stop();
+      //     }
+      //   }
+      //   nextStep(0);
+      // }
       res.status(200).send('OK');
     },
     "collect": async (req, res, next) => {
@@ -108,14 +108,7 @@ module.exports = {
                       upward_point: [],
                       downward_point: [],
                     };
-                    // let result_vol = {
-                    //   curr_trend: 0,
-                    //   init_trend: 0,
-                    //   segmentation: [],
-                    //   upward_point: [],
-                    //   downward_point: [],
-                    // };
-                    // analysis.segmentation([...all_data].splice(0, i + 1), result_vol, 'volume');
+                    
                     analysis.segmentation([...all_data].splice(0, i + 1), result, 'close');
                     let insight = analysis.cross_point(result, row, 'close');
 
@@ -133,9 +126,6 @@ module.exports = {
                       power: power,
                       date: moment(row.date).format('YYYY-MM-DD')
                     };
-
-                    var short_ma = new SMA({ period: 20, values: [...all_data].slice(i - 20, i).map((d) => d.close) }).result
-                    var long_ma = new SMA({ period: 60, values: [...all_data].slice(i - 60, i).map((d) => d.close) }).result
 
                     let clouds = new IchimokuCloud({
                       high: [...all_data].slice(i - 77, i).map((d) => d.high),
@@ -165,10 +155,6 @@ module.exports = {
                         base: clouds[clouds.length - 1].base,
                       };
                     }
-                    // meta['up_count'] = up_count;
-                    // meta['down_count'] = down_count;
-                    // meta['conv_count'] = conv_count;
-                    // meta['future_conv'] = future_conv;
                     /*
                       spanA > spanB 양운
                       spanA < spanB 음운
@@ -179,7 +165,6 @@ module.exports = {
                     result['meta'] = meta;
 
                     if (prev_result) {
-                      // if (prev_result.meta.insight.support + prev_result.meta.insight.future_resist <= prev_result.meta.insight.resist + prev_result.meta.insight.future_support && insight.support + insight.future_resist > insight.future_support + insight.resist && (prev_result.meta.insight.future_resist != insight.future_resist || prev_result.meta.insight.future_support != insight.future_support) && prev_result.meta.insight.resist > insight.resist) {
                       if (!prev_result.meta.insight.support_price && insight.support_price && (insight.support + insight.future_resist) > (insight.future_support + insight.resist)) {
                         row['marker'] = '매수';
                         let futures = all_data.slice(i + 1, i + 61);
@@ -231,9 +216,8 @@ module.exports = {
           }
           nextStep(0);
         }
-        console.log(req.query.cron);
+        
         if(req.query.cron) {
-          console.log(req.query.cron);
           var CronJob = require('cron').CronJob;
           var collect_job = new CronJob('5 9-16 * * 1-5', collect_job_func, null, false, 'Asia/Seoul');
           collect_job.start();
@@ -244,6 +228,7 @@ module.exports = {
       res.status(200).send('OK');
     },
     "suggest": async (req, res, next) => {
+      const auto = req.query.auto !== undefined ? JSON.parse(req.query.auto) : true;
       const req_date = req.query.date ? new Date(req.query.date).getTime() - 32400000 : new Date(moment().format('YYYY-MM-DD')).getTime() - 32400000;
       const query_date = moment(req_date).add(-60, 'day').unix() * 1000
       
@@ -263,30 +248,34 @@ module.exports = {
             d['meta'] = JSON.parse(d.meta);
             return d
           });
+          let curr_data = data[data.length - 1];
 
           if(data.length > 0) {
             var max_point = [...data].sort((a, b) => b.high - a.high)[0];
             var high_rate = max_point.high / item.close * 100;
 
-            if(high_rate < 104) {
+            if(high_rate < 105) {
+              let _buy_price = _.mean([...data].map((d) => {
+                let count = 1;
+                let buy_price = d.high;
+                if(d.meta.insight && d.meta.insight.support_price) {
+                  buy_price += d.meta.insight.support_price;
+                  count++
+                }
+
+                if(d.meta.band && d.meta.band.lower) {
+                  buy_price += d.meta.band.lower;
+                  count++;
+                }
+                return buy_price / count
+              }))
               result.push({
                 code:item.code,
                 power:item.meta.power,
                 date: moment(item.date).format('YYYY-MM-DD'),
-                buy_price: _.mean([...data].map((d) => {
-                  let count = 1;
-                  let buy_price = d.high;
-                  if(d.meta.insight && d.meta.insight.support_price) {
-                    buy_price += d.meta.insight.support_price;
-                    count++
-                  }
-
-                  if(d.meta.band && d.meta.band.lower) {
-                    buy_price += d.meta.band.lower;
-                    count++;
-                  }
-                  return buy_price / count
-                }))
+                buy_price: _buy_price,
+                isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price,
+                status: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support
               })
             }
           } else {
@@ -300,17 +289,24 @@ module.exports = {
               buy_price += item.meta.band.lower;
               count++;
             }
+            let _buy_price = buy_price/count;
             result.push({
               code:item.code,
               power:item.meta.power,
               date: moment(item.date).format('YYYY-MM-DD'),
-              buy_price: buy_price/count
+              buy_price: _buy_price,
+              isBuy: item.low < _buy_price && item.close > _buy_price,
+              status: item.meta.insight.support + item.meta.insight.future_resist > item.meta.insight.resist + item.meta.insight.future_support
             })
           }
           nextStep(step + 1);
         } else {
           result.sort((prev,curr) => curr.power - prev.power)
-          res.status(200).send(result)
+          if(auto) {
+            res.status(200).send(result)
+          } else {
+            res.status(200).send(result.filter((d) => d.isBuy && d.status))
+          }
         }
       }
       await nextStep(0);
