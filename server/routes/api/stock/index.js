@@ -1,12 +1,12 @@
-const collector = require('./modules/NaverFinance');
-const analysis = require('./modules/Analysis');
+const collector = require('../../modules/NaverFinance');
+const analysis = require('../../modules/Analysis');
 const connector = require('../../../connector');
 
 const cliProgress = require('cli-progress');
 const moment = require('moment');
 
 const dfd = require("danfojs-node");
-const { segmentation } = require('./modules/Analysis');
+const { segmentation } = require('../../modules/Analysis');
 const { IchimokuCloud, BollingerBands, OBV, SMA } = require('technicalindicators');
 
 let collecting = false;
@@ -108,7 +108,7 @@ module.exports = {
                       upward_point: [],
                       downward_point: [],
                     };
-                    
+
                     analysis.segmentation([...all_data].splice(0, i + 1), result, 'close');
                     let insight = analysis.cross_point(result, row, 'close');
 
@@ -216,8 +216,8 @@ module.exports = {
           }
           nextStep(0);
         }
-        
-        if(req.query.cron) {
+
+        if (req.query.cron) {
           var CronJob = require('cron').CronJob;
           var collect_job = new CronJob('5 9-16 * * 1-5', collect_job_func, null, false, 'Asia/Seoul');
           collect_job.start();
@@ -228,10 +228,11 @@ module.exports = {
       res.status(200).send('OK');
     },
     "suggest": async (req, res, next) => {
+      const expected_rate = req.query.rate ? parseFloat(req.query.rate) : 105;
       const auto = req.query.auto !== undefined ? JSON.parse(req.query.auto) : true;
       const req_date = req.query.date ? new Date(req.query.date).getTime() - 32400000 : new Date(moment().format('YYYY-MM-DD')).getTime() - 32400000;
       const query_date = moment(req_date).add(-60, 'day').unix() * 1000
-      
+
       const stockList = new connector.types.StockData(connector.database);
       const origin_data = await stockList.getTable().where('date', '>=', query_date).andWhere('date', '<=', req_date)
       const result = [];
@@ -250,28 +251,28 @@ module.exports = {
           });
           let curr_data = data[data.length - 1];
 
-          if(data.length > 0) {
+          if (data.length > 0) {
             var max_point = [...data].sort((a, b) => b.high - a.high)[0];
             var high_rate = max_point.high / item.close * 100;
 
-            if(high_rate < 105) {
+            if (high_rate < expected_rate) {
               let _buy_price = _.mean([...data].map((d) => {
                 let count = 1;
-                let buy_price = d.high;
-                if(d.meta.insight && d.meta.insight.support_price) {
+                let buy_price = d.close;
+                if (d.meta.insight && d.meta.insight.support_price) {
                   buy_price += d.meta.insight.support_price;
                   count++
                 }
 
-                if(d.meta.band && d.meta.band.lower) {
+                if (d.meta.band && d.meta.band.lower) {
                   buy_price += d.meta.band.lower;
                   count++;
                 }
                 return buy_price / count
               }))
               result.push({
-                code:item.code,
-                power:item.meta.power,
+                code: item.code,
+                power: item.meta.power,
                 date: moment(item.date).format('YYYY-MM-DD'),
                 buy_price: _buy_price,
                 isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price,
@@ -280,19 +281,19 @@ module.exports = {
             }
           } else {
             let count = 1;
-            let buy_price = item.high; 
-            if(item.meta.insight.support_price) {
+            let buy_price = item.close;
+            if (item.meta.insight.support_price) {
               buy_price += item.meta.insight.support_price;
               count++;
             }
-            if(item.meta.band && item.meta.band.lower) {
+            if (item.meta.band && item.meta.band.lower) {
               buy_price += item.meta.band.lower;
               count++;
             }
-            let _buy_price = buy_price/count;
+            let _buy_price = buy_price / count;
             result.push({
-              code:item.code,
-              power:item.meta.power,
+              code: item.code,
+              power: item.meta.power,
               date: moment(item.date).format('YYYY-MM-DD'),
               buy_price: _buy_price,
               isBuy: item.low < _buy_price && item.close > _buy_price,
@@ -301,8 +302,8 @@ module.exports = {
           }
           nextStep(step + 1);
         } else {
-          result.sort((prev,curr) => curr.power - prev.power)
-          if(auto) {
+          result.sort((prev, curr) => curr.power - prev.power)
+          if (auto) {
             res.status(200).send(result)
           } else {
             res.status(200).send(result.filter((d) => d.isBuy))
@@ -322,16 +323,16 @@ module.exports = {
 
       let curr_data = data[data.length - 1];
       curr_data['meta'] = JSON.parse(curr_data['meta']);
-      
+
       let count = 1;
       let sell_price = curr_data.low;
 
-      if(curr_data.meta.band && curr_data.meta.band.upper) {
+      if (curr_data.meta.band && curr_data.meta.band.upper) {
         sell_price += curr_data.meta.band.upper;
         count++
       }
 
-      if(curr_data.meta.insight && curr_data.meta.insight.resist_price) {
+      if (curr_data.meta.insight && curr_data.meta.insight.resist_price) {
         sell_price += curr_data.meta.insight.resist_price;
         count++
       }
@@ -342,8 +343,8 @@ module.exports = {
         buy : 현재 사야되나 말아야되나 정보 제공 boolean
       */
       res.status(200).send({
-        status: curr_data.meta.insight.resist_price? '매도' : '홀딩',
-        sell_price: sell_price/count,
+        status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
+        sell_price: sell_price / count,
         buy: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support
       })
     },

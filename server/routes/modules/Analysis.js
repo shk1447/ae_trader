@@ -75,14 +75,16 @@ function segmentation(data, result, key) {
       return prev[key] < curr[key] ? prev : curr
     })
 
-    const trend_type = max.date > min.date ? 'upward' : 'downward';
     var min_idx = data.indexOf(min);
     var max_idx = data.indexOf(max);
+
+    const trend_type = min_idx < max_idx ? 'upward' : 'downward';
+
     if (!result.init_trend) result.init_trend = trend_type == 'upward' ? 1 : -1;
 
     switch (trend_type) {
       case 'upward':
-        trend([...data].slice(min_idx, max_idx), result, trend_type, min[key], key);
+        trend([...data].slice(min_idx, max_idx + 1), result, trend_type, min[key], key);
         data = data.slice(max_idx)
         result.curr_trend = trend_type == 'upward' ? 1 : -1
         result.segmentation.push({
@@ -91,7 +93,7 @@ function segmentation(data, result, key) {
 
         break;
       case 'downward':
-        trend([...data].slice(max_idx, min_idx), result, trend_type, max[key], key);
+        trend([...data].slice(max_idx, min_idx + 1), result, trend_type, max[key], key);
         data = data.slice(min_idx)
         result.curr_trend = trend_type == 'upward' ? 1 : -1;
         result.segmentation.push({
