@@ -270,13 +270,15 @@ module.exports = {
                 }
                 return buy_price / count
               }))
+              console.log(curr_data.meta.cloud)
               result.push({
                 code: item.code,
                 power: item.meta.power,
                 date: moment(item.date).format('YYYY-MM-DD'),
                 buy_price: _buy_price,
                 isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price,
-                status: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support
+                status: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support,
+                reverse: curr_data.meta.cloud ? (curr_data.meta.cloud.spanA > curr_data.meta.cloud.spanB && curr_data.meta.cloud.spanB > curr_data.close) : false
               })
             }
           } else {
@@ -297,16 +299,17 @@ module.exports = {
               date: moment(item.date).format('YYYY-MM-DD'),
               buy_price: _buy_price,
               isBuy: item.low < _buy_price && item.close > _buy_price,
-              status: item.meta.insight.support + item.meta.insight.future_resist > item.meta.insight.resist + item.meta.insight.future_support
+              status: item.meta.insight.support + item.meta.insight.future_resist > item.meta.insight.resist + item.meta.insight.future_support,
+              reverse: item.meta.cloud ? (item.meta.cloud.spanA > item.meta.cloud.spanB && item.meta.cloud.spanB > item.close) : false
             })
           }
           nextStep(step + 1);
         } else {
           result.sort((prev, curr) => curr.power - prev.power)
           if (auto) {
-            res.status(200).send(result)
+            res.status(200).send(result.filter((d) => !d.reverse))
           } else {
-            res.status(200).send(result.filter((d) => d.isBuy))
+            res.status(200).send(result.filter((d) => d.isBuy && !d.reverse))
           }
         }
       }

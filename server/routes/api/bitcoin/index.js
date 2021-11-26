@@ -46,10 +46,10 @@ module.exports = {
 
         const long = await getInsight(240, list[i].market);
         const short = await getInsight(60, list[i].market);
-        const curr = await getInsight(5, list[i].market);
+        const curr = await getInsight(10, list[i].market);
 
-        if ((long.insight.support + long.insight.future_resist) > (long.insight.future_support + long.insight.resist) && !long.prev_insight.support_price && long.insight.support_price) {
-          console.log(list[i].market, (long.insight.support_price + long.row.close) / 2)
+        if ((curr.insight.support + curr.insight.future_resist) > (curr.insight.future_support + curr.insight.resist) && !curr.prev_insight.support_price && curr.insight.support_price) {
+          console.log(list[i].market, (curr.insight.support_price + curr.row.close) / 2)
         }
 
         await wait(200);
