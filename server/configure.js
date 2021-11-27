@@ -16,6 +16,10 @@ process.env.google_id = config.google_auth.id;
 process.env.google_secret = config.google_auth.secret;
 process.env.google_domain = config.google_auth.domain;
 
+process.env.UPBIT_OPEN_API_ACCESS_KEY = config.upbit.access_key;
+process.env.UPBIT_OPEN_API_SECRET_KEY = config.upbit.secret_key;
+process.env.UPBIT_OPEN_API_SERVER_URL = config.upbit.server_url;
+
 process.env.smtp = config.smtp;
 
 module.exports = config;

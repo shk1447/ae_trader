@@ -33,5 +33,10 @@
       "user": "",
       "pass": ""
     }
+  },
+  "upbit": {
+    "access_key": "",
+    "secret_key": "",
+    "server_url": "https://api.upbit.com"
   }
 }
