@@ -328,16 +328,25 @@ module.exports = {
       curr_data['meta'] = JSON.parse(curr_data['meta']);
 
       let count = 1;
+      let buy_count = 1;
       let sell_price = curr_data.low;
+      let buy_price = curr_data.close;
 
-      if (curr_data.meta.band && curr_data.meta.band.upper) {
+      if (curr_data.meta.band) {
         sell_price += curr_data.meta.band.upper;
+        buy_price += curr_data.meta.band.lower;
+        buy_count++
         count++
       }
 
       if (curr_data.meta.insight && curr_data.meta.insight.resist_price) {
         sell_price += curr_data.meta.insight.resist_price;
         count++
+      }
+
+      if (curr_data.meta.insight && curr_data.meta.insight.support_price) {
+        buy_price += curr_data.meta.insight.support_price;
+        buy_count++
       }
 
       /*
@@ -348,6 +357,7 @@ module.exports = {
       res.status(200).send({
         status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
         sell_price: sell_price / count,
+        buy_price: buy_price / buy_count,
         buy: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support
       })
     },

@@ -12,7 +12,7 @@ const access_key = process.env.UPBIT_OPEN_API_ACCESS_KEY
 const secret_key = process.env.UPBIT_OPEN_API_SECRET_KEY
 const server_url = process.env.UPBIT_OPEN_API_SERVER_URL
 
-// const { BollingerBands } = require('technicalindicators');
+const { BollingerBands } = require('technicalindicators');
 // 비트코인도 가보즈아~~~!!
 module.exports = {
   get: {
@@ -83,6 +83,11 @@ module.exports = {
             volume: d.candle_acc_trade_volume
           }
         })
+        let bands = new BollingerBands({
+          period: 20,
+          stdDev: 2,
+          values: [...rows].slice(rows.length - 20).map((d) => d.close),
+        }).result
 
         const row = rows[rows.length - 1];
         let result = {
@@ -101,7 +106,8 @@ module.exports = {
         return {
           insight: insight,
           prev_insight: prev_insight,
-          row: row
+          row: row,
+          band: bands[0]
         }
       }
       for (var i = 0; i < list.length; i++) {
@@ -110,10 +116,10 @@ module.exports = {
         const short = await getInsight(60, list[i].market);
         const curr = await getInsight(15, list[i].market);
 
-        if ((long.insight.support + long.insight.future_resist) > (long.insight.future_support + long.insight.resist) && !long.prev_insight.support_price && long.insight.support_price) {
-          const buy_price = (long.insight.support_price + long.row.high) / 2;
+        if ((curr.insight.support + curr.insight.future_resist) > (curr.insight.future_support + curr.insight.resist) && !curr.prev_insight.support_price && curr.insight.support_price) {
+          const buy_price = (curr.insight.support_price + curr.band.lower + curr.row.high) / 3;
 
-          if (long.row.low < buy_price && long.row.close > buy_price) {
+          if (curr.row.low < buy_price && curr.row.close > buy_price) {
             console.log(list[i].market, buy_price, (curr.insight.support + curr.insight.future_resist) > (curr.insight.future_support + curr.insight.resist));
           }
 
