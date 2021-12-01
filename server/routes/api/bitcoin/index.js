@@ -1,3 +1,4 @@
+const moment = require('moment')
 const wait = require('waait')
 const axios = require('axios');
 const analysis = require('../../modules/Analysis');
@@ -7,13 +8,18 @@ const { v4: uuidv4 } = require("uuid")
 const crypto = require('crypto')
 const sign = require('jsonwebtoken').sign
 const queryEncode = require("querystring").encode
+const WebSocket = require('ws');
 
+const ws_url = 'wss://api.upbit.com/websocket/v1';
 const access_key = process.env.UPBIT_OPEN_API_ACCESS_KEY
 const secret_key = process.env.UPBIT_OPEN_API_SECRET_KEY
 const server_url = process.env.UPBIT_OPEN_API_SERVER_URL
 
 const { BollingerBands } = require('technicalindicators');
-// 비트코인도 가보즈아~~~!!
+
+
+var buyItems = {};
+
 module.exports = {
   get: {
     "auto_trading": async (req, res, next) => {
@@ -70,19 +76,8 @@ module.exports = {
       const response = await axios.get(`${server_url}/v1/market/all`);
       const list = response.data.filter((d) => d.market.includes('KRW-'))
 
-      const getInsight = async (minutes, market) => {
-        const { data } = await axios.get(`${server_url}/v1/candles/minutes/${minutes}?market=${market}&count=200`)
-        data.sort((a, b) => a.timestamp - b.timestamp)
-        const rows = data.map((d) => {
-          return {
-            close: d.trade_price,
-            high: d.high_price,
-            open: d.opening_price,
-            low: d.low_price,
-            date: d.timestamp,
-            volume: d.candle_acc_trade_volume
-          }
-        })
+      const getInsight = async (data) => {
+        const rows = data;
         let bands = new BollingerBands({
           period: 20,
           stdDev: 2,
@@ -100,34 +95,130 @@ module.exports = {
 
         analysis.segmentation(rows, result, 'close');
         let insight = analysis.cross_point(result, row, 'close');
-        analysis.segmentation(rows.slice(0, rows.length - 1), result, 'close');
-        let prev_insight = analysis.cross_point(result, rows.slice(0, rows.length - 1), 'close');
 
         return {
           insight: insight,
-          prev_insight: prev_insight,
           row: row,
           band: bands[0]
         }
       }
-      for (var i = 0; i < list.length; i++) {
 
-        const long = await getInsight(240, list[i].market);
-        const short = await getInsight(60, list[i].market);
-        const curr = await getInsight(15, list[i].market);
+      const analysis_job_func = async (unit, val) => {
+        for (var i = 0; i < list.length; i++) {
+          const day_url = `${server_url}/v1/candles/days?market=${list[i].market}&count=200`
+          const min_url = `${server_url}/v1/candles/minutes/${val}?market=${list[i].market}&count=200`
+          let { data } = await axios.get(unit === 'day' ? day_url : min_url);
+          data.sort((a, b) => a.timestamp - b.timestamp)
+          data = data.map((d) => {
+            return {
+              close: d.trade_price,
+              high: d.high_price,
+              open: d.opening_price,
+              low: d.low_price,
+              date: d.timestamp,
+              volume: d.candle_acc_trade_volume
+            }
+          })
+          const curr = await getInsight(data);
+          if (!buyItems[list[i].market]) {
+            buyItems[list[i].market] = {};
+          }
+          buyItems[list[i].market]['rows_' + unit + '_' + val] = data
+          buyItems[list[i].market]['insight_' + unit + '_' + val] = curr
+          buyItems[list[i].market]['detect'] = true
 
-        if ((curr.insight.support + curr.insight.future_resist) > (curr.insight.future_support + curr.insight.resist) && !curr.prev_insight.support_price && curr.insight.support_price) {
-          const buy_price = (curr.insight.support_price + curr.band.lower + curr.row.high) / 3;
+          await wait(250);
+        }
+      }
 
-          if (curr.row.low < buy_price && curr.row.close > buy_price) {
-            console.log(list[i].market, buy_price, (curr.insight.support + curr.insight.future_resist) > (curr.insight.future_support + curr.insight.resist));
+      var CronJob = require('cron').CronJob;
+
+      await analysis_job_func('min', 240);
+      await analysis_job_func('day', 1);
+      console.log('started!!!')
+
+      const ws = new WebSocket(ws_url)
+      ws.on('open', () => {
+        console.log('connected!?')
+        ws.send(JSON.stringify([{ "ticket": uuidv4() }, {
+          type: 'ticker',
+          codes: list.map((d) => d.market)
+        }]))
+        setInterval(() => {
+          ws.send(JSON.stringify({ "status": "UP" }))
+        }, 10000)
+      })
+
+      ws.on('message', async (msg) => {
+        var body = JSON.parse(msg);
+
+        if (buyItems[body.code] && buyItems[body.code]['detect']) {
+          var prev_short = buyItems[body.code]['insight_min_240'];
+          var short_rows = buyItems[body.code]['rows_min_240'];
+          short_rows[short_rows.length - 1] = {
+            close: body.trade_price,
+            high: short_rows[short_rows.length - 1].high < body.trade_price ? body.trade_price : short_rows[short_rows.length - 1].high,
+            open: short_rows[short_rows.length - 1],
+            low: short_rows[short_rows.length - 1].low > body.trade_price ? body.trade_price : short_rows[short_rows.length - 1].low,
+            date: short_rows[short_rows.length - 1].date,
+            volume: short_rows[short_rows.length - 1].volume
           }
 
-        }
+          var prev_long = buyItems[body.code]['insight_day_1'];
+          var long_rows = buyItems[body.code]['rows_day_1'];
+          long_rows[long_rows.length - 1] = {
+            close: body.trade_price,
+            high: long_rows[long_rows.length - 1].high < body.trade_price ? body.trade_price : long_rows[long_rows.length - 1].high,
+            open: long_rows[long_rows.length - 1],
+            low: long_rows[long_rows.length - 1].low > body.trade_price ? body.trade_price : long_rows[long_rows.length - 1].low,
+            date: long_rows[long_rows.length - 1].date,
+            volume: long_rows[long_rows.length - 1].volume
+          }
 
-        await wait(250);
-      }
-      res.status(200).send(response.data);
+          const curr_short = await getInsight(short_rows);
+          const curr_long = await getInsight(long_rows);
+
+          if (!prev_short.insight.support_price && curr_short.insight.support_price) {
+            const signal_price = (curr_long.insight.support_price + curr_short.band.middle + body.trade_price) / 3;
+            if (curr_long.insight.support + curr_long.insight.future_resist >= curr_long.insight.resist + curr_long.insight.future_support) {
+              vases.logger.info(body.code + " " + moment().format('YYYY-MM-DD HH:mm:ss') + " " + signal_price);
+            }
+          }
+
+          buyItems[body.code]['rows_day_1'] = long_rows;
+          buyItems[body.code]['rows_min_240'] = short_rows;
+          buyItems[body.code]['insight_day_1'] = curr_long;
+          buyItems[body.code]['insight_min_240'] = curr_short;
+
+
+          // console.log(body.code, buyItems[body.code]['price_min_240'], buyItems[body.code]['price_day_1'])
+          // if (buyItems[body.code]['signal'] === false && buyItems[body.code]['price_60'] < body.trade_price) {
+          //   buyItems[body.code]['signal'] = true;
+          //   console.log(body.code, moment().format('YYYY-MM-DD HH:mm:ss'), '매수', body.trade_price, buyItems[body.code]['price_240'], buyItems[body.code]['price_60'])
+          // }
+          // if (buyItems[body.code]['price_60'] > body.trade_price && buyItems[body.code]['price_240'] > buyItems[body.code]['price_60']) {
+          //   buyItems[body.code]['signal'] = false;
+          // }
+        }
+      })
+
+      var long_analysis_job = new CronJob('0 9 * * *', () => {
+        analysis_job_func('day', 1);
+      }, null, false, 'Asia/Seoul');
+
+      // '0 1,5,9,13,17,21 * * *'
+      var short_analysis_job = new CronJob('0 1,5,9,13,17,21 * * *', () => {
+        analysis_job_func('min', 240);
+      }, null, false, 'Asia/Seoul');
+
+      long_analysis_job.start();
+      short_analysis_job.start();
+
+      res.status(200).send('START');
+
+      // while (true) {
+      //   await trade_job_func(60);
+      // }
     }
   }
 }

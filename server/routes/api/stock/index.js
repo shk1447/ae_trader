@@ -275,7 +275,7 @@ module.exports = {
                 }
                 return buy_price / count
               }))
-              console.log(curr_data.meta.cloud)
+
               result.push({
                 code: item.code,
                 power: item.meta.power,
