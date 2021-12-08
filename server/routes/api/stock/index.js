@@ -27,17 +27,31 @@ const collectFunc = async (code, days) => {
       const data = await collector.getSise(item.stock_code, days);
       if (data.length > 0) {
         const origin_data = await connector.dao.StockData.getTable().where('date', '<', data[0].date);
-        const all_data = origin_data.concat(data);
+        const all_data = origin_data.concat(data).map((d) => {
+          if(d.meta) {
+            d.meta = JSON.parse(d.meta);
+          }
+          return d;
+        })
+
+        const support_rows = all_data.filter((d) => d.meta && d.meta.insight.support_price);
+        const resist_rows = all_data.filter((d) => d.meta && d.meta.insight.resist_price);
+
+        let last_support_price = support_rows[support_rows.length - 1] ? support_rows[support_rows.length - 1].meta.insight.support_price : null;
+        let last_resist_price = resist_rows[resist_rows.length - 1] ? resist_rows[resist_rows.length - 1].meta.insight.resist_price : null;
 
         let prev_result;
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
           let row = all_data[i];
           row['code'] = item.stock_code;
           try {
-            var day_power = (row.close - row.open);
-            var down_power = (row.high - Math.min(row.open, row.close));
-            var up_power = (Math.max(row.open, row.close) - row.low);
-            var power = (up_power - down_power + day_power) * (row.volume / item.stock_total);
+            const curr_power = _.mean([...all_data].slice(i - 20, i).map((d) => {
+              var day_power = (d.close - d.open);
+              var down_power = (d.high - Math.min(d.open, d.close));
+              var up_power = (Math.max(d.open, d.close) - d.low);
+              var power = (up_power - down_power + day_power) * (d.volume / item.stock_total);
+              return power;
+            }))
 
             let result = {
               curr_trend: 0,
@@ -50,6 +64,12 @@ const collectFunc = async (code, days) => {
             analysis.segmentation([...all_data].splice(0, i + 1), result, 'close');
             let insight = analysis.cross_point(result, row, 'close');
 
+            insight['last_support_price'] = last_support_price;
+            insight['last_resist_price'] = last_resist_price;
+
+            if(insight.support_price) last_support_price = insight.support_price;
+            if(insight.resist_price) last_resist_price = insight.resist_price;
+
             result.segmentation.sort((a, b) => a.from.date - b.from.date)
             result.upward_point.sort((a, b) => a.date - b.date)
             result.downward_point.sort((a, b) => a.date - b.date)
@@ -61,18 +81,9 @@ const collectFunc = async (code, days) => {
               upward_point: result.upward_point.length,
               downward_point: result.downward_point.length,
               insight: insight,
-              power: power,
+              curr_power: curr_power,
               date: moment(row.date).format('YYYY-MM-DD')
             };
-
-            let clouds = new IchimokuCloud({
-              high: [...all_data].slice(i - 77, i).map((d) => d.high),
-              low: [...all_data].slice(i - 77, i).map((d) => d.low),
-              conversionPeriod: 9,
-              basePeriod: 26,
-              spanPeriod: 52,
-              displacement: 26
-            }).result;
 
             let bands = new BollingerBands({
               period: 20,
@@ -82,16 +93,6 @@ const collectFunc = async (code, days) => {
             if (bands.length > 0) {
               let band_data = bands;
               meta['band'] = band_data[0];
-            }
-
-            if (clouds.length > 0) {
-              let cloud_data = clouds;
-              meta['cloud'] = {
-                spanA: clouds[0].spanA,
-                spanB: clouds[0].spanB,
-                conversion: clouds[clouds.length - 1].conversion,
-                base: clouds[clouds.length - 1].base,
-              };
             }
             /*
               spanA > spanB 양운
@@ -103,7 +104,7 @@ const collectFunc = async (code, days) => {
             result['meta'] = meta;
 
             if (prev_result) {
-              if (!prev_result.meta.insight.support_price && insight.support_price && (insight.support + insight.future_resist) > (insight.future_support + insight.resist)) {
+              if (!prev_result.meta.insight.support_price && insight.support_price && insight.support > insight.resist && result.meta.curr_power > prev_result.meta.curr_power && result.meta.curr_power > 0) {
                 row['marker'] = '매수';
                 let futures = all_data.slice(i + 1, i + 61);
                 if (futures.length == 60) {
@@ -246,6 +247,7 @@ module.exports = {
         if (step < origin_data.length) {
           var item = origin_data[step];
           item['meta'] = JSON.parse(item.meta)
+
           const stockData = new connector.types.StockData(connector.database);
           stockData.table_name = "stock_data_" + item.code;
 
@@ -254,9 +256,14 @@ module.exports = {
             d['meta'] = JSON.parse(d.meta);
             return d
           });
-          let curr_data = data[data.length - 1];
+          let curr_data = data[data.length - 1] ? data[data.length - 1] : item;
 
-          if (data.length > 0) {
+          var day_power = (curr_data.close - curr_data.open);
+          var down_power = (curr_data.high - Math.min(curr_data.open, curr_data.close));
+          var up_power = (Math.max(curr_data.open, curr_data.close) - curr_data.low);
+          var power = (up_power - down_power + day_power) * (curr_data.volume / item.stock_total);
+
+          if (data.length > 0 && curr_data.volume > 0) {
             var max_point = [...data].sort((a, b) => b.high - a.high)[0];
             var high_rate = max_point.high / item.close * 100;
 
@@ -278,12 +285,10 @@ module.exports = {
 
               result.push({
                 code: item.code,
-                power: item.meta.power,
+                power: curr_data.meta.curr_power,
                 date: moment(item.date).format('YYYY-MM-DD'),
                 buy_price: _buy_price,
-                isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price,
-                status: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support,
-                reverse: curr_data.meta.cloud ? (curr_data.meta.cloud.spanA > curr_data.meta.cloud.spanB && curr_data.meta.cloud.spanB > curr_data.close) : false
+                isBuy: _buy_price >= curr_data.low && _buy_price <= curr_data.close
               })
             }
           } else {
@@ -293,28 +298,26 @@ module.exports = {
               buy_price += item.meta.insight.support_price;
               count++;
             }
-            if (item.meta.band && item.meta.band.lower) {
-              buy_price += item.meta.band.lower;
+            if (item.meta.cloud && item.meta.cloud.conversion) {
+              buy_price += item.meta.cloud.conversion;
               count++;
             }
             let _buy_price = buy_price / count;
             result.push({
               code: item.code,
-              power: item.meta.power,
+              power: item.meta.curr_power,
               date: moment(item.date).format('YYYY-MM-DD'),
               buy_price: _buy_price,
-              isBuy: item.low < _buy_price && item.close > _buy_price,
-              status: item.meta.insight.support + item.meta.insight.future_resist > item.meta.insight.resist + item.meta.insight.future_support,
-              reverse: item.meta.cloud ? (item.meta.cloud.spanA > item.meta.cloud.spanB && item.meta.cloud.spanB > item.close) : false
+              isBuy: _buy_price >= curr_data.low && _buy_price <= curr_data.close
             })
           }
           nextStep(step + 1);
         } else {
           result.sort((prev, curr) => curr.power - prev.power)
           if (auto) {
-            res.status(200).send(result.filter((d) => !d.reverse))
+            res.status(200).send(result)
           } else {
-            res.status(200).send(result.filter((d) => d.isBuy && !d.reverse))
+            res.status(200).send(result.filter((d) => d.isBuy))
           }
         }
       }
@@ -334,6 +337,11 @@ module.exports = {
 
       let curr_data = data[data.length - 1];
       curr_data['meta'] = JSON.parse(curr_data['meta']);
+
+      var day_power = (curr_data.close - curr_data.open);
+      var down_power = (curr_data.high - Math.min(curr_data.open, curr_data.close));
+      var up_power = (Math.max(curr_data.open, curr_data.close) - curr_data.low);
+      var power = (up_power - down_power + day_power) * (d.volume / item.stock_total);
 
       let count = 1;
       let buy_count = 1;
@@ -363,20 +371,25 @@ module.exports = {
         buy : 현재 사야되나 말아야되나 정보 제공 boolean
       */
       res.status(200).send({
-        status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
+        status: curr_data.meta.insight.support < curr_data.meta.insight.resist ? '매도' : '홀딩',
         sell_price: sell_price / count,
         buy_price: buy_price / buy_count,
-        buy: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support
       })
     },
     "test": async (req, res, next) => {
-      // 테스트 : 기간내 5프로 이상 수익 79프로 성공 확인
+      // 테스트 : 기간내 5프로 초과 수익 82프로 성공 확인
+      // 테스트 : 기간내 3프로 초과 수익 89프로 성공 확인
+      const rate = req.query.rate ? parseFloat(req.query.rate) : 105;
       const stockData = new connector.types.StockData(connector.database);
-      const origin_data = await stockData.select()
+      let origin_data = await stockData.select()
 
-      var good_list = origin_data.filter((d) => d.result > 105)
+      origin_data = origin_data.map((d) => {
+        d.meta = JSON.parse(d.meta)
+        return d
+      })
+      var good_list = origin_data.filter((d) => d.result > rate)
 
-      console.log(good_list.length, origin_data.map((d) => d.result).length, _.mean(good_list.map((d) => d.result)))
+      console.log(good_list.length, origin_data.filter((d) => d.result).length, _.mean(good_list.map((d) => d.result)))
       res.status(200).send()
     },
   }

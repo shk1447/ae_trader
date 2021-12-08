@@ -137,14 +137,16 @@ function cross_point(result, pick, key) {
 
   var resist_price = _.mean([...resist].map((d) => d.close))
   var support_price = _.mean([...support].map((d) => d.close))
+  var future_resist_price = _.mean([...future_resist].map((d) => d.close))
+  var future_support_price = _.mean([...future_support].map((d) => d.close))
 
   return {
-    resist: resist.length,
-    support: support.length,
-    future_resist: future_resist.length,
-    future_support: future_support.length,
+    resist: resist.length + future_resist.length,
+    support: support.length + future_support.length,
     resist_price: resist_price,
-    support_price: support_price
+    support_price: support_price,
+    future_resist_price: future_resist_price,
+    future_support_price: future_support_price
   }
 }
 

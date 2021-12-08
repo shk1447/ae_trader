@@ -133,8 +133,8 @@ module.exports = {
 
       var CronJob = require('cron').CronJob;
 
-      await analysis_job_func('min', 240);
       await analysis_job_func('day', 1);
+      await analysis_job_func('min', 240);
       console.log('started!!!')
 
       const ws = new WebSocket(ws_url)
@@ -152,7 +152,21 @@ module.exports = {
       ws.on('message', async (msg) => {
         var body = JSON.parse(msg);
 
-        if (buyItems[body.code] && buyItems[body.code]['detect']) {
+        if (buyItems[body.code]['signal']) {
+          if (buyItems[body.code]['signal'] > body.trade_price) {
+            buyItems[body.code]['buy_price'] = body.trade_price;
+          }
+        }
+
+        if (buyItems[body.code]['buy_price']) {
+          const rate = buyItems[body.code]['buy_price'] / body.trade_price * 100;
+
+          if (rate > 103) {
+            vases.logger.info(body.code, '매도')
+          }
+        }
+
+        if (buyItems[body.code]) {
           var prev_short = buyItems[body.code]['insight_min_240'];
           var short_rows = buyItems[body.code]['rows_min_240'];
           short_rows[short_rows.length - 1] = {
@@ -178,27 +192,15 @@ module.exports = {
           const curr_short = await getInsight(short_rows);
           const curr_long = await getInsight(long_rows);
 
-          if (!prev_short.insight.support_price && curr_short.insight.support_price) {
-            const signal_price = (curr_long.insight.support_price + curr_short.band.middle + body.trade_price) / 3;
-            if (curr_long.insight.support + curr_long.insight.future_resist >= curr_long.insight.resist + curr_long.insight.future_support) {
-              vases.logger.info(body.code + " " + moment().format('YYYY-MM-DD HH:mm:ss') + " " + signal_price);
-            }
+          if (!prev_short.insight.support_price && curr_short.insight.support_price && curr_long.insight.support + curr_long.insight.future_resist >= curr_long.insight.resist + curr_long.insight.future_support) {
+            vases.logger.info(body.code + " " + moment().format('YYYY-MM-DD HH:mm:ss') + " " + (curr_short.insight.support_price + curr_long.band.middle) / 2);
+            buyItems[body.code]['signal'] = (curr_short.insight.support_price + curr_long.band.middle) / 2;
           }
 
-          buyItems[body.code]['rows_day_1'] = long_rows;
           buyItems[body.code]['rows_min_240'] = short_rows;
-          buyItems[body.code]['insight_day_1'] = curr_long;
+          buyItems[body.code]['rows_day_1'] = long_rows;
           buyItems[body.code]['insight_min_240'] = curr_short;
-
-
-          // console.log(body.code, buyItems[body.code]['price_min_240'], buyItems[body.code]['price_day_1'])
-          // if (buyItems[body.code]['signal'] === false && buyItems[body.code]['price_60'] < body.trade_price) {
-          //   buyItems[body.code]['signal'] = true;
-          //   console.log(body.code, moment().format('YYYY-MM-DD HH:mm:ss'), '매수', body.trade_price, buyItems[body.code]['price_240'], buyItems[body.code]['price_60'])
-          // }
-          // if (buyItems[body.code]['price_60'] > body.trade_price && buyItems[body.code]['price_240'] > buyItems[body.code]['price_60']) {
-          //   buyItems[body.code]['signal'] = false;
-          // }
+          buyItems[body.code]['insight_day_1'] = curr_long;
         }
       })
 
