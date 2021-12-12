@@ -27,17 +27,48 @@ const collectFunc = async (code, days) => {
       const data = await collector.getSise(item.stock_code, days);
       if (data.length > 0) {
         const origin_data = await connector.dao.StockData.getTable().where('date', '<', data[0].date);
-        const all_data = origin_data.concat(data);
+        const all_data = origin_data.concat(data).map((d) => {
+          if (d.meta) {
+            d.meta = JSON.parse(d.meta);
+          }
+          return d;
+        })
 
         let prev_result;
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
           let row = all_data[i];
           row['code'] = item.stock_code;
           try {
-            var day_power = (row.close - row.open);
-            var down_power = (row.high - Math.min(row.open, row.close));
-            var up_power = (Math.max(row.open, row.close) - row.low);
-            var power = (up_power - down_power + day_power) * (row.volume / item.stock_total);
+            const getChangeRate = (arr) => {
+              var ret_arr = [];
+              if (arr.length > 0) {
+                arr.reduce((prev, curr) => {
+                  ret_arr.push(curr - prev)
+                  return curr
+                })
+              }
+              if (ret_arr.length > 1) {
+                ret_arr = getChangeRate(ret_arr)
+              }
+              return ret_arr
+            }
+
+            var period_arr = [...all_data].slice(i - 20, i).map((d) => {
+              var day_power = (d.close - d.open);
+              var down_power = (d.high - Math.min(d.open, d.close));
+              var up_power = (Math.max(d.open, d.close) - d.low);
+              var power = (up_power - down_power + day_power) * (d.volume / item.stock_total);
+              return power;
+            })
+            const long_power = _.mean(period_arr);
+            const long_change_rate = getChangeRate(period_arr);
+            const curr_power = _.mean([...all_data].slice(i - 3, i).map((d) => {
+              var day_power = (d.close - d.open);
+              var down_power = (d.high - Math.min(d.open, d.close));
+              var up_power = (Math.max(d.open, d.close) - d.low);
+              var power = (up_power - down_power + day_power) * (d.volume / item.stock_total);
+              return power;
+            }));
 
             let result = {
               curr_trend: 0,
@@ -61,7 +92,9 @@ const collectFunc = async (code, days) => {
               upward_point: result.upward_point.length,
               downward_point: result.downward_point.length,
               insight: insight,
-              power: power,
+              curr_power: curr_power,
+              long_power: long_power,
+              long_change_rate: long_change_rate,
               date: moment(row.date).format('YYYY-MM-DD')
             };
 
@@ -85,7 +118,6 @@ const collectFunc = async (code, days) => {
             }
 
             if (clouds.length > 0) {
-              let cloud_data = clouds;
               meta['cloud'] = {
                 spanA: clouds[0].spanA,
                 spanB: clouds[0].spanB,
@@ -103,7 +135,8 @@ const collectFunc = async (code, days) => {
             result['meta'] = meta;
 
             if (prev_result) {
-              if (!prev_result.meta.insight.support_price && insight.support_price && (insight.support + insight.future_resist) > (insight.future_support + insight.resist)) {
+              if (!prev_result.meta.insight.support_price && insight.support_price && insight.support > insight.resist
+                && long_power < curr_power && long_change_rate >= 0 && prev_result.meta.long_change_rate < 0) {
                 row['marker'] = '매수';
                 let futures = all_data.slice(i + 1, i + 61);
                 if (futures.length == 60) {
@@ -278,43 +311,32 @@ module.exports = {
 
               result.push({
                 code: item.code,
-                power: item.meta.power,
+                power: item.meta.curr_power,
                 date: moment(item.date).format('YYYY-MM-DD'),
                 buy_price: _buy_price,
-                isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price,
-                status: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support,
-                reverse: curr_data.meta.cloud ? (curr_data.meta.cloud.spanA > curr_data.meta.cloud.spanB && curr_data.meta.cloud.spanB > curr_data.close) : false
+                isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price
               })
             }
           } else {
-            let count = 1;
-            let buy_price = item.close;
-            if (item.meta.insight.support_price) {
-              buy_price += item.meta.insight.support_price;
-              count++;
+            var _buy_price = item.meta.support_price;
+            if (item.meta.cloud) {
+              _buy_price = (_buy_price + item.meta.cloud.conversion + item.meta.cloud.base + item.close) / 4;
             }
-            if (item.meta.band && item.meta.band.lower) {
-              buy_price += item.meta.band.lower;
-              count++;
-            }
-            let _buy_price = buy_price / count;
             result.push({
               code: item.code,
-              power: item.meta.power,
+              power: item.meta.curr_power,
               date: moment(item.date).format('YYYY-MM-DD'),
               buy_price: _buy_price,
-              isBuy: item.low < _buy_price && item.close > _buy_price,
-              status: item.meta.insight.support + item.meta.insight.future_resist > item.meta.insight.resist + item.meta.insight.future_support,
-              reverse: item.meta.cloud ? (item.meta.cloud.spanA > item.meta.cloud.spanB && item.meta.cloud.spanB > item.close) : false
+              isBuy: item.low < _buy_price && item.close > _buy_price
             })
           }
           nextStep(step + 1);
         } else {
           result.sort((prev, curr) => curr.power - prev.power)
           if (auto) {
-            res.status(200).send(result.filter((d) => !d.reverse))
+            res.status(200).send(result)
           } else {
-            res.status(200).send(result.filter((d) => d.isBuy && !d.reverse))
+            res.status(200).send(result.filter((d) => d.isBuy))
           }
         }
       }
@@ -371,12 +393,13 @@ module.exports = {
     },
     "test": async (req, res, next) => {
       // 테스트 : 기간내 5프로 이상 수익 79프로 성공 확인
+      const rate = req.query.rate ? parseFloat(req.query.rate) : 105
       const stockData = new connector.types.StockData(connector.database);
       const origin_data = await stockData.select()
 
-      var good_list = origin_data.filter((d) => d.result > 105)
+      var good_list = origin_data.filter((d) => d.result > rate)
 
-      console.log(good_list.length, origin_data.map((d) => d.result).length, _.mean(good_list.map((d) => d.result)))
+      console.log(good_list.length, origin_data.filter((d) => d.result).length, _.mean(good_list.map((d) => d.result)))
       res.status(200).send()
     },
   }
