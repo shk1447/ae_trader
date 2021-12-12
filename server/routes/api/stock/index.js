@@ -327,7 +327,7 @@ module.exports = {
           } else {
             var _buy_price = item.meta.support_price;
             if (item.meta.cloud) {
-              _buy_price = (_buy_price + item.meta.cloud.conversion + item.meta.cloud.base + item.close) / 4;
+              _buy_price = (item.meta.cloud.conversion + item.meta.cloud.base + item.close) / 3;
             }
             result.push({
               code: item.code,
