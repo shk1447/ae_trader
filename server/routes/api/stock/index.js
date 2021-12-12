@@ -306,6 +306,13 @@ module.exports = {
                   buy_price += d.meta.band.lower;
                   count++;
                 }
+
+                if (d.meta.cloud && d.meta.cloud.conversion && d.meta.cloud.base) {
+                  buy_price += d.meta.cloud.conversion;
+                  buy_price += d.meta.cloud.base;
+
+                  count += 2
+                }
                 return buy_price / count
               }))
 
