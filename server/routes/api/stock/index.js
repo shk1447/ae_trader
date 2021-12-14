@@ -293,8 +293,22 @@ module.exports = {
             var max_point = [...data].sort((a, b) => b.high - a.high)[0];
             var high_rate = max_point.high / item.close * 100;
 
+            const getChangeRate = (arr) => {
+              var ret_arr = [];
+              if (arr.length > 0) {
+                arr.reduce((prev, curr) => {
+                  ret_arr.push(curr - prev)
+                  return curr
+                })
+              }
+              if (ret_arr.length > 1) {
+                ret_arr = getChangeRate(ret_arr)
+              }
+              return ret_arr
+            }
+
             if (high_rate < expected_rate) {
-              let _buy_price = _.mean([...data].map((d) => {
+              var support_arr = [...data].map((d) => {
                 let count = 1;
                 let buy_price = d.close;
                 if (d.meta.insight && d.meta.insight.support_price) {
@@ -307,34 +321,34 @@ module.exports = {
                   count++;
                 }
 
-                if (d.meta.cloud && d.meta.cloud.conversion && d.meta.cloud.base) {
-                  buy_price += d.meta.cloud.conversion;
-                  buy_price += d.meta.cloud.base;
+                let support_price = buy_price / count;
 
-                  count += 2
-                }
-                return buy_price / count
-              }))
-
+                return support_price
+              })
+              const change_rate = getChangeRate(support_arr);
+              let _buy_price = _.mean(support_arr)
+              
               result.push({
                 code: item.code,
                 power: item.meta.curr_power,
                 date: moment(item.date).format('YYYY-MM-DD'),
+                change_rate: change_rate,
                 buy_price: _buy_price,
-                isBuy: curr_data.low < _buy_price && curr_data.close > _buy_price
+                isBuy: _buy_price >= curr_data.low && _buy_price <= curr_data.close
               })
             }
           } else {
-            var _buy_price = item.meta.support_price;
+            var _buy_price = item.meta.support_price + item.close;
             if (item.meta.cloud) {
-              _buy_price = (item.meta.cloud.conversion + item.meta.cloud.base + item.close) / 3;
+              _buy_price = (item.meta.cloud.conversion + item.meta.cloud.base) / 2;
             }
             result.push({
               code: item.code,
               power: item.meta.curr_power,
               date: moment(item.date).format('YYYY-MM-DD'),
               buy_price: _buy_price,
-              isBuy: item.low < _buy_price && item.close > _buy_price
+              change_rate:item.meta.long_change_rate,
+              isBuy: _buy_price >= item.low && _buy_price <= item.close
             })
           }
           nextStep(step + 1);
@@ -343,7 +357,7 @@ module.exports = {
           if (auto) {
             res.status(200).send(result)
           } else {
-            res.status(200).send(result.filter((d) => d.isBuy))
+            res.status(200).send(result.filter((d) => d.change_rate[0] > 0 && d.isBuy))
           }
         }
       }
