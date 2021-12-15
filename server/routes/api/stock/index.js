@@ -357,7 +357,7 @@ module.exports = {
         } else {
           result.sort((prev, curr) => curr.power - prev.power)
           if (auto) {
-            res.status(200).send(result)
+            res.status(200).send(result.filter((d) => d.change_rate[0] > 0))
           } else {
             res.status(200).send(result.filter((d) => d.change_rate[0] > 0 && d.isBuy))
           }
@@ -411,7 +411,7 @@ module.exports = {
         status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
         sell_price: sell_price / count,
         buy_price: buy_price / buy_count,
-        buy: curr_data.meta.insight.support + curr_data.meta.insight.future_resist > curr_data.meta.insight.resist + curr_data.meta.insight.future_support
+        buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist
       })
     },
     "test": async (req, res, next) => {
