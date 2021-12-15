@@ -330,7 +330,8 @@ module.exports = {
               
               result.push({
                 code: item.code,
-                power: item.meta.curr_power,
+                close: curr_data.close,
+                power: curr_data.meta.curr_power,
                 date: moment(item.date).format('YYYY-MM-DD'),
                 change_rate: change_rate,
                 buy_price: _buy_price,
@@ -344,6 +345,7 @@ module.exports = {
             }
             result.push({
               code: item.code,
+              close: item.close,
               power: item.meta.curr_power,
               date: moment(item.date).format('YYYY-MM-DD'),
               buy_price: _buy_price,
