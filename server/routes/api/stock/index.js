@@ -5,7 +5,6 @@ const connector = require('../../../connector');
 const cliProgress = require('cli-progress');
 const moment = require('moment');
 
-const dfd = require("danfojs-node");
 const { segmentation } = require('../../modules/Analysis');
 const { IchimokuCloud, BollingerBands, OBV, SMA } = require('technicalindicators');
 
@@ -425,5 +424,10 @@ module.exports = {
       console.log(good_list.length, origin_data.filter((d) => d.result).length, _.mean(good_list.map((d) => d.result)))
       res.status(200).send()
     },
+  },
+  post: {
+    "favorite": async(req,res,next) => {
+      res.status(200).send();
+    }
   }
 }

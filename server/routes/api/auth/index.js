@@ -1,6 +1,7 @@
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+const KakaoStrategy = require('passport-kakao').Strategy;
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -55,6 +56,17 @@ passport.use('google', new GoogleStrategy({
   })
 )
 */
+
+
+passport.use('kakao', new KakaoStrategy({
+  clientID: process.env.kakao_id,
+  callbackURL: '/auth/kakao/callback',     // 위에서 설정한 Redirect URI
+}, async (accessToken, refreshToken, profile, done) => {
+  console.log(profile);
+  console.log(accessToken);
+  console.log(refreshToken);
+}))
+
 
 passport.use('local', new LocalStrategy({
   usernameField: 'email',
@@ -143,5 +155,9 @@ module.exports = {
       )(req, res, next);
     },
     "google/callback": [passport.authenticate('google', { successRedirect: `${process.env.google_domain}/#/viewer`, failureRedirect: '/#/' })],
+    "kakao": function(req,res,next) {
+      passport.authenticate('kakao')(req,res,next);
+    },
+    "kakao/callback": [passport.authenticate('kakao',  { successRedirect: `${process.env.google_domain}/#/viewer`, failureRedirect: '/#/' })]
   }
 }
