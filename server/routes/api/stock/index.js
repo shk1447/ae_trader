@@ -408,6 +408,8 @@ module.exports = {
       */
       res.status(200).send({
         status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
+        code: curr_data.code,
+        close:curr_data.close,
         sell_price: sell_price / count,
         buy_price: buy_price / buy_count,
         buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist
@@ -427,6 +429,8 @@ module.exports = {
   },
   post: {
     "favorite": async(req,res,next) => {
+      const codes = req.body.codes;
+      
       res.status(200).send();
     }
   }

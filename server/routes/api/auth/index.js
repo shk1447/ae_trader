@@ -7,6 +7,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const fsPath = require('fs-path')
 
+const connector = require('../../../connector');
+
 passport.serializeUser((user, done) => {
   done(null, user);
 })
@@ -65,6 +67,7 @@ passport.use('kakao', new KakaoStrategy({
   console.log(profile);
   console.log(accessToken);
   console.log(refreshToken);
+  done(null, profile);
 }))
 
 
@@ -75,7 +78,7 @@ passport.use('local', new LocalStrategy({
   passReqToCallback: false
 }, (email, password, done) => {
   // 절차..
-  var user = new vases.db.dao.User();
+  const user = new connector.types.User(connector.database);
   var storage_key = create_user_db(email);
   user.select({ email: email, pwd: password }).then((rows) => {
     if (rows.length > 0) {
