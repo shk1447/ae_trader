@@ -59,7 +59,7 @@ passport.use('google', new GoogleStrategy({
 )
 */
 
-
+/*
 passport.use('kakao', new KakaoStrategy({
   clientID: process.env.kakao_id,
   callbackURL: '/auth/kakao/callback',     // 위에서 설정한 Redirect URI
@@ -69,7 +69,7 @@ passport.use('kakao', new KakaoStrategy({
   console.log(refreshToken);
   done(null, profile);
 }))
-
+*/
 
 passport.use('local', new LocalStrategy({
   usernameField: 'email',
