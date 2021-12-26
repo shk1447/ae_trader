@@ -430,7 +430,7 @@ module.exports = {
   post: {
     "favorite": async(req,res,next) => {
       const codes = req.body.codes;
-      
+      // 관심종목 등록 api
       res.status(200).send();
     }
   }

@@ -1,0 +1,18 @@
+.App {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  padding:0;
+}
+
+.app-body {
+  flex:1;
+  overflow: auto;
+}
+
+.app-footer {
+  padding:0
+}
