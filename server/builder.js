@@ -14,7 +14,7 @@ var package = JSON.parse(fs.readFileSync(path.resolve(__dirname, './package.json
 package.devDependencies = {};
 package.dependencies = {
   "knex": "~0.21.1",
-  "sqlite3": "^4.2.0",
+  "sqlite3": "^5.0.2",
   "mysql": "^2.18.1"
 }
 package.scripts = {

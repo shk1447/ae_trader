@@ -19,6 +19,7 @@ function Main(props) {
   },[])
 
   const addFavorite = (item) => {
+    props.ws.send('stock', { subscribe:[item.code] })
     alert('스토킹 종목 등록!')
   }
 
@@ -64,7 +65,7 @@ function Main(props) {
               renderItem={item => (
                 <List.Item actions={[<StarOutlined onClick={() => addFavorite(item)} />]}>
                   <List.Item.Meta
-                    title={item.name + ' ' + item.code}
+                    title={<><Tag color="green">{item.code}</Tag> {item.name}</>}
                     description={<div>
                       <p style={{margin:0}}>추천가 : {item.buy_price}원</p>
                       <p style={{margin:0}}>추천일 : {item.date}</p>

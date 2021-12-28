@@ -102,7 +102,13 @@ module.exports = (async (config) => {
           };
           process.on("message", function (msg) {
             var action_func = getAction(vases, msg.action);
-            action_func.apply(null, msg.args);
+            console.log(action_func);
+            console.log(msg.args);
+            try {
+              action_func.apply(null, msg.args);
+            } catch (error) {
+              console.log(error);
+            }
           })
 
           server.listen(port, host, function () {

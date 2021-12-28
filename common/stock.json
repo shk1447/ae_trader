@@ -1,0 +1,8 @@
+{
+    "subscribe": "string",
+    "unsubscribe": "string",
+    "publish": [{
+        "code": "string",
+        "close": "int"
+    }]
+}

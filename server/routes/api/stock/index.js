@@ -434,6 +434,12 @@ module.exports = {
         sell_price : 매도 가능한 저항가격 제공!
         buy : 현재 사야되나 말아야되나 정보 제공 boolean
       */
+
+      process.send({
+        action:'LightWS.send',
+        args:["stock", {publish:[{code:curr_data.code, close:curr_data.close}]}, {subscribe:"000020"}]
+      })
+      
       res.status(200).send({
         status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
         code: curr_data.code,
