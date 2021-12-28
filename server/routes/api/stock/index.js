@@ -290,8 +290,14 @@ module.exports = {
       const req_date = req.query.date ? new Date(req.query.date).getTime() - 32400000 : new Date(moment().format('YYYY-MM-DD')).getTime() - 32400000;
       const query_date = moment(req_date).add(-60, 'day').unix() * 1000
 
+      const _stockList = new connector.types.StockList(connector.database);
       const stockList = new connector.types.StockData(connector.database);
       const origin_data = await stockList.getTable().where('date', '>=', query_date).andWhere('date', '<=', req_date)
+      let origin_map = {};
+      const origin_list = await _stockList.select();
+      origin_list.forEach((item) => {
+        origin_map[item.stock_code] = item;
+      });
       const result = [];
 
       const nextStep = async (step) => {
@@ -349,6 +355,7 @@ module.exports = {
               
               result.push({
                 code: item.code,
+                name: origin_map[item.code].stock_name,
                 close: curr_data.close,
                 power: curr_data.meta.curr_power,
                 date: moment(item.date).format('YYYY-MM-DD'),
@@ -364,6 +371,7 @@ module.exports = {
             }
             result.push({
               code: item.code,
+              name: origin_map[item.code].stock_name,
               close: item.close,
               power: item.meta.curr_power,
               date: moment(item.date).format('YYYY-MM-DD'),

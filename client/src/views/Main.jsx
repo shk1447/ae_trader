@@ -11,25 +11,6 @@ function Main(props) {
   }
   const [list, setList ] = useState([]);
 
-  const data = [
-    {
-      title: '삼성전자',
-      date:'2021-10-10'
-    },
-    {
-      title: 'SK Hynics',
-      date:'2021-10-20'
-    },
-    {
-      title: '동신건설',
-      date:'2021-11-10'
-    },
-    {
-      title: '테스트',
-      date:'2021-12-10'
-    },
-  ];
-
   useEffect(async () => {
     const { data, status } = await get('./stock/suggest?rate=105');
     if(status == 200) {
@@ -83,8 +64,11 @@ function Main(props) {
               renderItem={item => (
                 <List.Item actions={[<StarOutlined onClick={() => addFavorite(item)} />]}>
                   <List.Item.Meta
-                    title={item.code}
-                    description={<div>{item.date}</div>}
+                    title={item.name + ' ' + item.code}
+                    description={<div>
+                      <p style={{margin:0}}>추천가 : {item.buy_price}원</p>
+                      <p style={{margin:0}}>추천일 : {item.date}</p>
+                    </div>}
                   />
                 </List.Item>
               )}
