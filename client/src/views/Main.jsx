@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { PageHeader, Button, Tag, Card, Statistic, Drawer, List } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, MenuUnfoldOutlined, MenuFoldOutlined, StarOutlined, EllipsisOutlined } from '@ant-design/icons';
+import { get } from '../utils/http';
 
 function Main(props) {
   console.log(props.ws);
@@ -8,6 +9,7 @@ function Main(props) {
   const toggleCollapsed = () => {
     setCollapsed(prev => !prev);
   }
+  const [list, setList ] = useState([]);
 
   const data = [
     {
@@ -27,6 +29,13 @@ function Main(props) {
       date:'2021-12-10'
     },
   ];
+
+  useEffect(async () => {
+    const { data, status } = await get('./stock/suggest?rate=105');
+    if(status == 200) {
+      setList(data);
+    }
+  },[])
 
   const addFavorite = (item) => {
     alert('스토킹 종목 등록!')
@@ -70,11 +79,11 @@ function Main(props) {
         >
           <List
               itemLayout="horizontal"
-              dataSource={data}
+              dataSource={list}
               renderItem={item => (
                 <List.Item actions={[<StarOutlined onClick={() => addFavorite(item)} />]}>
                   <List.Item.Meta
-                    title={item.title}
+                    title={item.code}
                     description={<div>{item.date}</div>}
                   />
                 </List.Item>
