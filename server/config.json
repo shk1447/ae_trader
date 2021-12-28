@@ -22,7 +22,8 @@
     }
   },
   "kakao_auth" :{
-    "id":""
+    "id":"",
+    "domain":"http://localhost:8080"
   },
   "google_auth": {
     "id": "",

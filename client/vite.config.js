@@ -13,12 +13,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host:'0.0.0.0',
-    port:'3000',
+    port:'8080',
     proxy: {
       '/stock': {
         target:'http://localhost:8081',
         changeOrigin:true
-      }
+      },
+      '/auth': {
+        target:'http://localhost:8081',
+        changeOrigin:true
+      },
     }
   }
 })

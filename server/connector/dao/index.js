@@ -1,5 +1,6 @@
 module.exports = {
   StockData: require('./stock/data'),
   StockList: require('./stock/list'),
-  Session: require('./user/session')
+  Session: require('./user/session'),
+  UserList: require('./user/list'),
 }
