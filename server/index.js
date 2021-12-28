@@ -123,7 +123,7 @@ module.exports = (async (config) => {
     var app = express();
 
     app.set('view cache', true);
-    app.use('/', express.static(path.resolve(config.root_path)))
+    app.use('/', express.static(path.resolve(config.root_path, '../dist')))
     app.use(helmet());
     app.use(helmet.xssFilter());
     app.disable('x-powered-by');
