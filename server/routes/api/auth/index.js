@@ -156,10 +156,10 @@ module.exports = {
       }
       )(req, res, next);
     },
-    "google/callback": [passport.authenticate('google', { successRedirect: `${process.env.google_domain}/#/viewer`, failureRedirect: '/#/' })],
+    "google/callback": [passport.authenticate('google', { successRedirect: `${process.env.google_domain}/#/main`, failureRedirect: '/#/' })],
     "kakao": function(req,res,next) {
       passport.authenticate('kakao')(req,res,next);
     },
-    "kakao/callback": [passport.authenticate('kakao',  { successRedirect: `${process.env.kakao_domain}/main`, failureRedirect: `${process.env.kakao_domain}` })]
+    "kakao/callback": [passport.authenticate('kakao',  { successRedirect: `${process.env.kakao_domain}/#/main`, failureRedirect: `${process.env.kakao_domain}` })]
   }
 }

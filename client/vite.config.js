@@ -5,6 +5,9 @@ const path = require('path');
 // https://vitejs.dev/config/
 export default defineConfig({
   base:'./',
+  build: {
+    outDir:'../dist'
+  },
   resolve: {
     alias:{
       '@': path.resolve(__dirname, './src')
@@ -23,6 +26,11 @@ export default defineConfig({
         target:'http://localhost:8081',
         changeOrigin:true
       },
+      '/vases': {
+        target:'http://localhost:8081',
+        changeOrigin:true,
+        ws:true
+      }
     }
   }
 })
