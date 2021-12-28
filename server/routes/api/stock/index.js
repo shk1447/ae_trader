@@ -10,6 +10,26 @@ const { IchimokuCloud, BollingerBands, OBV, SMA } = require('technicalindicators
 
 let collecting = false;
 
+const convertToHoga = (price) => {
+  let hoga_price = Math.round(price);
+  if (price < 1000) {
+    hoga_price = hoga_price;
+  } else if (price < 5000) {
+    hoga_price = hoga_price - (hoga_price % 5)
+  } else if (price < 10000) {
+    hoga_price = hoga_price - (hoga_price % 10)
+  } else if (price < 50000) {
+    hoga_price = hoga_price - (hoga_price % 50)
+  } else if (price < 100000) {
+    hoga_price = hoga_price - (hoga_price % 100)
+  } else if (price < 500000) {
+    hoga_price = hoga_price - (hoga_price % 100)
+  } else {
+    hoga_price = hoga_price - (hoga_price % 100)
+  }
+  return hoga_price
+}
+
 const collectFunc = async (code, days) => {
   const stockList = await connector.dao.StockList.select(code);
 
@@ -333,7 +353,7 @@ module.exports = {
                 power: curr_data.meta.curr_power,
                 date: moment(item.date).format('YYYY-MM-DD'),
                 change_rate: change_rate,
-                buy_price: _buy_price,
+                buy_price: convertToHoga(_buy_price),
                 isBuy: _buy_price >= curr_data.low && _buy_price <= curr_data.close
               })
             }
@@ -347,7 +367,7 @@ module.exports = {
               close: item.close,
               power: item.meta.curr_power,
               date: moment(item.date).format('YYYY-MM-DD'),
-              buy_price: _buy_price,
+              buy_price: convertToHoga(_buy_price),
               change_rate:item.meta.long_change_rate,
               isBuy: _buy_price >= item.low && _buy_price <= item.close
             })
@@ -410,8 +430,8 @@ module.exports = {
         status: curr_data.meta.insight.resist_price ? '매도' : '홀딩',
         code: curr_data.code,
         close:curr_data.close,
-        sell_price: sell_price / count,
-        buy_price: buy_price / buy_count,
+        sell_price: convertToHoga(sell_price / count),
+        buy_price: convertToHoga(buy_price / buy_count),
         buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist
       })
     },
