@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { PageHeader, Button, Tag, Card, Statistic, Drawer, List } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, MenuUnfoldOutlined, MenuFoldOutlined, StarOutlined, StarFilled, EllipsisOutlined } from '@ant-design/icons';
-import { get } from '../utils/http';
+import { get, post } from '../utils/http';
 
 function Main(props) {
   console.log(props.ws);

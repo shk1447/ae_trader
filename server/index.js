@@ -37,6 +37,7 @@ global.vases = {
   LightWS: null,
   session_store: null,
   logger: logger,
+  config:config
   //transport:transport
 }
 
@@ -54,6 +55,71 @@ module.exports = (async (config) => {
       createtable: false,
       tablename: 'session'
     });
+    
+    var app = express();
+
+    app.set('view cache', true);
+    app.use('/', express.static(path.resolve(config.root_path, '../dist')))
+    app.use(helmet());
+    app.use(helmet.xssFilter());
+    app.disable('x-powered-by');
+    app.use(cors());
+    app.use(compression());
+    app.use(fileUpload({}));
+    app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
+    app.use(bodyParser.json({ limit: '100mb' }));
+    app.use(cookieParser());
+    app.use(express.urlencoded({ extended: false, limit: '100mb', parameterLimit: 1000000 }));
+    app.use(express.json());
+    app.use(session({
+      key: 'vases_sid',
+      secret: 'vases',
+      cookie: {
+        maxAge: 1000 * 60 * config.session_time
+      },
+      saveUninitialized: false,
+      resave: false,
+      store: vases.session_store,
+      rolling: true
+    }))
+
+    app.use(passport.initialize());
+    app.use(passport.session());
+
+    route(app, config);
+    if (config.proxy) app.use('/', proxy(config.proxy))
+
+    const expressSwagger = require('express-swagger-generator')(app);
+    let options = {
+      swaggerDefinition: {
+        info: {
+          description: 'Trading Server by AutoEncoder',
+          title: 'Swagger',
+          version: '1.0.0',
+        },
+        host: 'localhost:8081',
+        basePath: '/',
+        produces: [
+          "application/json",
+        ],
+        consumes: [
+          "multipart/form-data",
+          "application/json",
+        ],
+        schemes: ['http', 'https'],
+      },
+      basedir: __dirname, //app absolute path
+      files: ['./routes/api/**/*.js'] //Path to the API handle folder
+    };
+    expressSwagger(options)
+
+    var server = http.createServer(app);
+
+    server.addListener("error", (err) => {
+      console.log(err);
+      vases.logger.error(err.message);
+    });
+
     ClusterServer = {
       name: 'ClusterServer',
       cpus: os.cpus().length,
@@ -120,69 +186,6 @@ module.exports = (async (config) => {
         }
       }
     }
-    var app = express();
-
-    app.set('view cache', true);
-    app.use('/', express.static(path.resolve(config.root_path, '../dist')))
-    app.use(helmet());
-    app.use(helmet.xssFilter());
-    app.disable('x-powered-by');
-    app.use(cors());
-    app.use(compression());
-    app.use(fileUpload({}));
-    app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-    app.use(bodyParser.json({ limit: '100mb' }));
-    app.use(cookieParser());
-    app.use(express.urlencoded({ extended: false, limit: '100mb', parameterLimit: 1000000 }));
-    app.use(express.json());
-    app.use(session({
-      key: 'vases_sid',
-      secret: 'vases',
-      cookie: {
-        maxAge: 1000 * 60 * config.session_time
-      },
-      saveUninitialized: false,
-      resave: false,
-      store: vases.session_store,
-      rolling: true
-    }))
-
-    app.use(passport.initialize());
-    app.use(passport.session());
-
-    route(app, config);
-    if (config.proxy) app.use('/', proxy(config.proxy))
-
-    const expressSwagger = require('express-swagger-generator')(app);
-    let options = {
-      swaggerDefinition: {
-        info: {
-          description: 'Trading Server by AutoEncoder',
-          title: 'Swagger',
-          version: '1.0.0',
-        },
-        host: 'localhost:8081',
-        basePath: '/',
-        produces: [
-          "application/json",
-        ],
-        consumes: [
-          "multipart/form-data",
-          "application/json",
-        ],
-        schemes: ['http', 'https'],
-      },
-      basedir: __dirname, //app absolute path
-      files: ['./routes/api/**/*.js'] //Path to the API handle folder
-    };
-    expressSwagger(options)
-
-    var server = http.createServer(app);
-
-    server.addListener("error", (err) => {
-      console.log(err);
-      vases.logger.error(err.message);
-    });
 
     ClusterServer.name = 'vases_cluster';
     ClusterServer.start(server, config.port, config.host);
