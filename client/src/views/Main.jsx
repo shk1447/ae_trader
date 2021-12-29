@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { PageHeader, Button, Tag, Card, Statistic, Drawer, List } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, MenuUnfoldOutlined, MenuFoldOutlined, StarOutlined, EllipsisOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, MenuUnfoldOutlined, MenuFoldOutlined, StarOutlined, StarFilled, EllipsisOutlined } from '@ant-design/icons';
 import { get } from '../utils/http';
 
 function Main(props) {
@@ -9,18 +9,43 @@ function Main(props) {
   const toggleCollapsed = () => {
     setCollapsed(prev => !prev);
   }
-  const [list, setList ] = useState([]);
+  const [suggestMap, setSuggestMap ] = useState({});
 
   useEffect(async () => {
     const { data, status } = await get('./stock/suggest?rate=105');
     if(status == 200) {
-      setList(data);
+      let stockMap = {};
+      data.map((item) => {
+        item['subscribe'] = false;
+        stockMap[item.code] = item
+      })
+      setSuggestMap(stockMap);
     }
+    props.ws.on('stock/subscribe', (data) => {
+      setSuggestMap((prev) => {
+        data.forEach((d) => {
+          prev[d].subscribe = true
+        })
+        return {...prev};
+      })
+    })
+
+    props.ws.on('stock/unsubscribe', (data) => {
+      setSuggestMap((prev) => {
+        data.forEach((d) => {
+          prev[d].subscribe = false
+        })
+        return {...prev};
+      })
+    })
   },[])
 
-  const addFavorite = (item) => {
-    props.ws.send('stock', { subscribe:[item.code] })
-    alert('스토킹 종목 등록!')
+  const subStock = (item) => {
+    props.ws.send('stock/subscribe', [item.code])
+  }
+
+  const unsubStock = (item) => {
+    props.ws.send('stock/unsubscribe', [item.code])
   }
 
   return (
@@ -61,9 +86,9 @@ function Main(props) {
         >
           <List
               itemLayout="horizontal"
-              dataSource={list}
-              renderItem={item => (
-                <List.Item actions={[<StarOutlined onClick={() => addFavorite(item)} />]}>
+              dataSource={Object.values(suggestMap)}
+              renderItem={(item, index) => (
+                <List.Item actions={[item.subscribe ? <StarFilled onClick={() => unsubStock(item, index)} /> : <StarOutlined onClick={() => subStock(item, index)} />]}>
                   <List.Item.Meta
                     title={<><Tag color="green">{item.code}</Tag> {item.name}</>}
                     description={<div>

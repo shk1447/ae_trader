@@ -1,0 +1,5 @@
+{
+    "stock/subscribe":["string"],
+    "stock/unsubscribe": ["string"],
+    "stock/publish":[{"code":"string", "close":"int"}]
+}

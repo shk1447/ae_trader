@@ -6,7 +6,7 @@ specifiers:
   '@vitejs/plugin-react': ^1.0.7
   antd: ^4.17.4
   axios: ^0.24.0
-  light-ws: 0.1.5
+  light-ws: 0.1.7
   lodash: ^4.17.21
   path: ^0.12.7
   react: ^17.0.2
@@ -21,7 +21,7 @@ dependencies:
   '@reduxjs/toolkit': 1.7.1_react-redux@7.2.6+react@17.0.2
   antd: 4.17.4_react-dom@17.0.2+react@17.0.2
   axios: 0.24.0
-  light-ws: 0.1.5
+  light-ws: 0.1.7
   lodash: 4.17.21
   react: 17.0.2
   react-dom: 17.0.2_react@17.0.2
@@ -935,8 +935,8 @@ packages:
       buffer: 6.0.3
     dev: false
 
-  /light-ws/0.1.5:
-    resolution: {integrity: sha512-vs2qs7FPGfHdEiKqyM0vXJPITebbnXEopLLgYLBpBr5zx9GjSj5RaeN/Az/PGGzlc+Ox9YhEIsoJLilm9qmsSQ==}
+  /light-ws/0.1.7:
+    resolution: {integrity: sha512-xxV+f1qlokHT+bQEF0bRzIk3JHGDqPLBPZ8J41pUm/C9bUgN1xGrB0cpFsE2MjeRTvDXGVlz1SHB5sEK2ObFiQ==}
     dependencies:
       light-json: 0.1.0
       url: 0.11.0
