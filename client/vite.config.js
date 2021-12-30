@@ -6,7 +6,7 @@ const path = require('path');
 export default defineConfig({
   base:'./',
   build: {
-    outDir:'../dist'
+    outDir:'../app/www'
   },
   resolve: {
     alias:{
