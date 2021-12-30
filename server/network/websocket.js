@@ -22,7 +22,6 @@ module.exports = function(server) {
 
   ws.on('stock/subscribe', function(data, client, req) {
     sessionParser(req,{}, () => {
-      console.log(req.isAuthenticated());
       if(data && Array.isArray(data)) {
         if(!client['stock/subscribe']) client['stock/subscribe'] = []
         client['stock/subscribe'] = client['stock/subscribe'].concat(data);
@@ -33,7 +32,6 @@ module.exports = function(server) {
 
   ws.on('stock/unsubscribe', function(data, client, req) {
     sessionParser(req,{}, () => {
-      console.log(req.isAuthenticated());
       if(data && Array.isArray(data)) {
         data.forEach((d) => {
           client['stock/subscribe'].splice(client['stock/subscribe'].indexOf(d), 1);

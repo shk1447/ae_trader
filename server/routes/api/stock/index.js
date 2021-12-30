@@ -212,7 +212,7 @@ module.exports = {
       if (!collecting) {
         let stockList = await collector.getStockList();
 
-        stockList = stockList.filter((d) => (!(d.stock_name.includes("KODEX") || d.stock_name.includes("TIGER") || d.stock_name.includes("KOSEF") || d.stock_name.includes("HANARO") || d.stock_name.includes("KINDEX") || d.stock_name.includes("선물") || d.stock_name.includes("인버스") || d.stock_name.includes("KBSTAR") || d.stock_name.includes("ARIRANG") || d.stock_name.includes("ETN") || d.stock_name.includes("고배당"))))
+        stockList = stockList.filter((d) => (d.stock_roe != 'N/A'&& d.stock_per != 'N/A'))
 
         await connector.dao.StockList.drop();
         await connector.dao.StockList.create();
