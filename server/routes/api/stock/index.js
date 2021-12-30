@@ -154,8 +154,7 @@ const collectFunc = async (code, days) => {
             result['meta'] = meta;
 
             if (prev_result) {
-              if (!prev_result.meta.insight.support_price && insight.support_price && insight.support > insight.resist
-                && long_power < curr_power && long_change_rate >= 0 && prev_result.meta.long_change_rate < 0) {
+              if (!prev_result.meta.insight.support_price && insight.support_price && insight.support > insight.resist) {
                 row['marker'] = '매수';
                 let futures = all_data.slice(i + 1, i + 61);
                 if (futures.length == 60) {
