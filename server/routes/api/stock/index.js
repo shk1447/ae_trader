@@ -322,7 +322,7 @@ if (cluster.isMaster) {
   collect_job.start();
 
   var publish_job = new CronJob(
-    "*/1 9-15 * * *",
+    "*/1 9-15 * * 1-5",
     status_job_func,
     null,
     false,
@@ -482,25 +482,38 @@ module.exports = {
             };
 
             if (high_rate < expected_rate) {
+              var sell_arr = [];
               var support_arr = [...data].map((d) => {
                 let count = 1;
+                let sell_count = 1;
                 let buy_price = d.close;
+                let sell_price = d.low;
                 if (d.meta.insight && d.meta.insight.support_price) {
                   buy_price += d.meta.insight.support_price;
                   count++;
                 }
 
+                if (d.meta.insight && d.meta.insight.resist_price) {
+                  sell_price += d.meta.insight.resist_price;
+                  sell_count++;
+                }
+
                 if (d.meta.band && d.meta.band.lower) {
                   buy_price += d.meta.band.lower;
+                  sell_price += d.meta.band.upper;
+                  sell_count++;
                   count++;
                 }
 
                 let support_price = buy_price / count;
 
+                sell_arr.push(sell_price / sell_count);
+
                 return support_price;
               });
               const change_rate = getChangeRate(support_arr);
               let _buy_price = _.mean(support_arr);
+              let _sell_price = _.mean(sell_arr);
 
               result.push({
                 code: item.code,
@@ -510,25 +523,21 @@ module.exports = {
                 date: moment(item.date).format("YYYY-MM-DD"),
                 change_rate: change_rate,
                 buy_price: convertToHoga(_buy_price),
-                isBuy:
-                  _buy_price >= curr_data.low && _buy_price <= curr_data.close,
+                sell_price: convertToHoga(_sell_price),
+                band: curr_data.meta.band,
               });
             }
           } else {
-            var _buy_price = item.meta.support_price + item.close;
-            if (item.meta.cloud) {
-              _buy_price =
-                (item.meta.cloud.conversion + item.meta.cloud.base) / 2;
-            }
             result.push({
               code: item.code,
               name: origin_map[item.code].stock_name,
               close: item.close,
               power: item.meta.curr_power,
               date: moment(item.date).format("YYYY-MM-DD"),
-              buy_price: convertToHoga(_buy_price),
+              sell_price: convertToHoga((item.meta.band.upper + item.low) / 2),
+              buy_price: convertToHoga((item.meta.band.lower + item.high) / 2),
               change_rate: item.meta.long_change_rate,
-              isBuy: _buy_price >= item.low && _buy_price <= item.close,
+              band: item.meta.band,
             });
           }
           nextStep(step + 1);
