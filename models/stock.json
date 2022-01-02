@@ -1,5 +1,10 @@
 {
-    "stock/subscribe":["string"],
-    "stock/unsubscribe": ["string"],
-    "stock/publish":[{"code":"string", "close":"int"}]
+  "stock/subscribe": ["string"],
+  "stock/unsubscribe": ["string"],
+  "stock/publish": {
+    "code": "string",
+    "close": "int",
+    "buy_price": "float",
+    "sell_price": "float"
+  }
 }

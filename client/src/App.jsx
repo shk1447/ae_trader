@@ -4,16 +4,13 @@ import {HashRouter, Route, Routes} from 'react-router-dom'
 import Login from './views/Login'
 import Main from './views/Main'
 
-function App(props) {
-  console.log(props.ws);
-  
-
+function App() {
   return (
     <div className="App">
       <HashRouter>
         <Routes>
-          <Route path="/" element={<Login ws={props.ws} />} />
-          <Route path="/main" element={<Main ws={props.ws} />} />  
+          <Route path="/" element={<Login />} />
+          <Route path="/main" element={<Main />} />  
         </Routes>
       </HashRouter>
     </div>

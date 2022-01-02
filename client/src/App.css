@@ -5,14 +5,15 @@
 }
 
 .app-header {
-  padding:0;
+  padding: 0;
 }
 
 .app-body {
-  flex:1;
+  flex: 1;
   overflow: auto;
+  padding: 2em;
 }
 
 .app-footer {
-  padding:0
+  padding: 0;
 }

@@ -1,4 +1,4 @@
-const knex = require('knex');
+const knex = require("knex");
 
 class DataConnector {
   constructor() {
@@ -14,22 +14,25 @@ class DataConnector {
         client: database.type,
         connection: database[database.type],
         pool: { min: 0, max: 10 },
-        useNullAsDefault: true
+        useNullAsDefault: true,
       });
       var ping = () => {
         clearTimeout(timeoutId);
-        db_conn.raw('select 1').then((a) => {
-          this.connected = true
-          this.database = db_conn;
-          resolve(require('./dao'));
-        }).catch((err) => {
-          console.log(err);
-          console.log('database is not running...');
-          timeoutId = setTimeout(ping, 1000);
-        })
-      }
+        db_conn
+          .raw("select 1")
+          .then((a) => {
+            this.connected = true;
+            this.database = db_conn;
+            resolve(require("./dao"));
+          })
+          .catch((err) => {
+            console.log(err);
+            console.log("database is not running...");
+            timeoutId = setTimeout(ping, 1000);
+          });
+      };
       ping();
-    })
+    });
   }
 
   initialize() {
@@ -40,7 +43,7 @@ class DataConnector {
       await obj.create();
       await obj.initialize();
       this.dao[key] = obj;
-    })
+    });
   }
 }
 

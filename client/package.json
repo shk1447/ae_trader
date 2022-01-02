@@ -2,7 +2,7 @@
   "name": "stock-app",
   "version": "0.0.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite build --watch",
     "build": "vite build",
     "preview": "vite preview"
   },
