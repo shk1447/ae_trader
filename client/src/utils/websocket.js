@@ -2,7 +2,7 @@ import LWS from "light-ws/client";
 import stock from "../../../models/stock.json";
 
 var ws = new LWS(stock);
-const url = "ws://stock.vases.ai/vases";
+const url = `ws://${location.host}/vases`;
 export const connect = () => {
   ws.connect(url, function (e) {
     if (e.type == "open") {

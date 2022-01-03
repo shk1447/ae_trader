@@ -49,13 +49,19 @@ const collectFunc = async (code, days) => {
   const nextStep = async (step) => {
     if (step < stockList.length) {
       var item = stockList[step];
-      connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
+
+      const stockData = new connector.types.StockData(connector.database);
+      stockData.table_name = "stock_data_" + item.stock_code;
+      // connector.dao.StockData.table_name = "stock_data_" + item.stock_code;
 
       let rows = [];
       let recommended_rows = [];
       const data = await collector.getSise(item.stock_code, days);
+      
+      // console.log(data)
+      
       if (data.length > 0) {
-        const origin_data = await connector.dao.StockData.getTable().where(
+        const origin_data = await stockData.getTable().where(
           "date",
           "<",
           data[0].date
@@ -68,8 +74,10 @@ const collectFunc = async (code, days) => {
         });
 
         let prev_result;
+        
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
           let row = all_data[i];
+          
           row["code"] = item.stock_code;
           try {
             const getChangeRate = (arr) => {
@@ -208,20 +216,20 @@ const collectFunc = async (code, days) => {
 
         if (rows.length > 0) {
           if (rows.length > 50) {
-            await connector.dao.StockData.batchInsert(rows);
+            await stockData.batchInsert(rows);
           } else {
-            await connector.dao.StockData.insert(rows)
+            await stockData.insert(rows)
               .onConflict(["code", "date"])
               .merge();
           }
         }
 
         if (recommended_rows.length > 0) {
-          connector.dao.StockData.table_name = "stock_data";
+          stockData.table_name = "stock_data";
           if (recommended_rows.length > 50) {
-            await connector.dao.StockData.batchInsert(recommended_rows);
+            await stockData.batchInsert(recommended_rows);
           } else {
-            await connector.dao.StockData.insert(recommended_rows)
+            await stockData.insert(recommended_rows)
               .onConflict(["code", "date"])
               .merge();
           }
@@ -240,7 +248,7 @@ const collectFunc = async (code, days) => {
 
 const collect_job_func = async () => {
   const code = {};
-  const days = 5;
+  const days = 2;
 
   collectFunc(code, days);
 };
@@ -251,14 +259,12 @@ const status_job_func = async () => {
 
   data.forEach(async (item) => {
     const code = item.code;
-    const req_date =
-      new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
     await collectFunc({ stock_code: code }, 1);
 
     const stockData = new connector.types.StockData(connector.database);
     stockData.table_name = "stock_data_" + code;
 
-    let data = await stockData.getTable().where("date", "<=", req_date);
+    let data = await stockData.getTable().orderBy('date', 'desc').limit(1);
 
     let curr_data = data[data.length - 1];
     curr_data["meta"] = JSON.parse(curr_data["meta"]);
@@ -299,8 +305,9 @@ const status_job_func = async () => {
           {
             code: curr_data.code,
             close: curr_data.close,
-            buy_price: convertToHoga(buy_price),
-            sell_price: convertToHoga(sell_price),
+            low: curr_data.low,
+            real_buy_price: convertToHoga(buy_price/buy_count),
+            real_sell_price: convertToHoga(sell_price/count),
           },
           { "stock/subscribe": curr_data.code },
         ],
@@ -313,7 +320,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8-15 * * 1-5",
+    "50 8,14,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -506,10 +513,14 @@ module.exports = {
                 code: item.code,
                 name: origin_map[item.code].stock_name,
                 close: curr_data.close,
+                low: curr_data.low,
                 power: curr_data.meta.curr_power,
                 date: moment(item.date).format("YYYY-MM-DD"),
                 change_rate: change_rate,
                 buy_price: convertToHoga(_buy_price),
+                real_buy_price: convertToHoga(_buy_price),
+                real_sell_price: 0,
+                band:curr_data.meta.band,
                 isBuy:
                   _buy_price >= curr_data.low && _buy_price <= curr_data.close,
               });
@@ -524,9 +535,13 @@ module.exports = {
               code: item.code,
               name: origin_map[item.code].stock_name,
               close: item.close,
+              low: item.low,
               power: item.meta.curr_power,
               date: moment(item.date).format("YYYY-MM-DD"),
               buy_price: convertToHoga(_buy_price),
+              real_buy_price: convertToHoga(_buy_price),
+              real_sell_price: 0,
+              band:item.meta.band,
               change_rate: item.meta.long_change_rate,
               isBuy: _buy_price >= item.low && _buy_price <= item.close,
             });
@@ -535,7 +550,7 @@ module.exports = {
         } else {
           result.sort((prev, curr) => curr.power - prev.power);
           if (auto) {
-            res.status(200).send(result.filter((d) => d.change_rate[0] > 0));
+            res.status(200).send(result.filter((d) => d.close <= d.buy_price));
           } else {
             res
               .status(200)
@@ -603,8 +618,9 @@ module.exports = {
         status: curr_data.meta.insight.resist_price ? "매도" : "홀딩",
         code: curr_data.code,
         close: curr_data.close,
+
         sell_price: convertToHoga(sell_price / count),
-        buy_price: convertToHoga(buy_price / buy_count),
+        real_buy_price: convertToHoga(buy_price / buy_count),
         buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist,
       });
     },

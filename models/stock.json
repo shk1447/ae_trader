@@ -4,7 +4,8 @@
   "stock/publish": {
     "code": "string",
     "close": "int",
-    "buy_price": "float",
-    "sell_price": "float"
+    "low": "int",
+    "real_buy_price": "float",
+    "real_sell_price": "float"
   }
 }
