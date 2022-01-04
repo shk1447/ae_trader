@@ -3,9 +3,7 @@ import React, { useState } from "react";
 function Login() {
   const handleKakaoAuth = (e) => {
     e.preventDefault();
-    const url = import.meta.env.DEV
-      ? "http://localhost/auth/kakao"
-      : "http://stock.vases.ai/auth/kakao";
+    const url = "/auth/kakao";
     location.href = url;
   };
   return (
