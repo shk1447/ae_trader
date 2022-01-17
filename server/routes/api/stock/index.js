@@ -320,7 +320,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8,14,15 * * 1-5",
+    "*/10 9-15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -543,18 +543,19 @@ module.exports = {
               real_sell_price: 0,
               band:item.meta.band,
               change_rate: item.meta.long_change_rate,
-              isBuy: _buy_price >= item.low && _buy_price <= item.close,
+              isBuy: true,
+              today: true,
             });
           }
           nextStep(step + 1);
         } else {
           result.sort((prev, curr) => curr.power - prev.power);
           if (auto) {
-            res.status(200).send(result.filter((d) => d.close <= d.buy_price));
+            res.status(200).send(result.filter((d) => d.close >= d.buy_price));
           } else {
             res
               .status(200)
-              .send(result.filter((d) => d.change_rate[0] > 0 && d.isBuy));
+              .send(result.filter((d) => d.isBuy));
           }
         }
       };

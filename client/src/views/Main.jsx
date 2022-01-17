@@ -14,17 +14,17 @@ import ws, { connect } from "../utils/websocket";
 
 const getMarks = (item) => {
   let marks = {}
-  marks[item.real_buy_price] = {
-    label: <strong>{item.real_buy_price + '원'}</strong>
-  }
-  marks[item.real_sell_price] = {
-    style: {
-      color: '#50a',
-    },
-    label: <strong>{item.real_sell_price + '원'}</strong>
-  }
+  // marks[item.real_buy_price] = {
+  //   label: <strong>{item.real_buy_price + '원'}</strong>
+  // }
+  // marks[item.real_sell_price] = {
+  //   style: {
+  //     color: '#50a',
+  //   },
+  //   label: <strong>{item.real_sell_price + '원'}</strong>
+  // }
   marks[item.buy_price] = {
-    label:item.buy_price + '원'
+    label:<strong>{item.buy_price + '원'}</strong>
   }
   return marks;
 }
@@ -37,18 +37,18 @@ function Main() {
   const [suggestMap, setSuggestMap] = useState({});
 
   useEffect(async () => {
-    connect();
+    // connect();
     const { data: suggests, status: sugStatus } = await get(
-      "/stock/suggest?rate=105"
+      "/stock/suggest?rate=105&auto=false"
     );
-    const { data: favorites, status: favStatus } = await get("/stock/favorite");
-    if (sugStatus == 200 && favStatus == 200) {
+    // const { data: favorites, status: favStatus } = await get("/stock/favorite");
+    if (sugStatus == 200) {
       let stockMap = {};
       suggests.map((item) => {
-        item["subscribe"] = favorites.includes(item.code) && true;
+        // item["subscribe"] = favorites.includes(item.code) && true;
         stockMap[item.code] = item;
       });
-      ws.send("stock/subscribe", favorites);
+      // ws.send("stock/subscribe", favorites);
       setSuggestMap(stockMap);
     }
 
@@ -87,11 +87,11 @@ function Main() {
   }, []);
 
   const subStock = (item) => {
-    ws.send("stock/subscribe", [item.code]);
+    // ws.send("stock/subscribe", [item.code]);
   };
 
   const unsubStock = (item) => {
-    ws.send("stock/unsubscribe", [item.code]);
+    // ws.send("stock/unsubscribe", [item.code]);
   };
 
   return (
@@ -116,17 +116,17 @@ function Main() {
         <List
           rowKey="code"
           itemLayout="horizontal"
-          dataSource={Object.values(suggestMap).filter((d) => d.subscribe)}
+          dataSource={Object.values(suggestMap).filter((d) => !d.today)}
           renderItem={(item, index) => (
             <>
               <List.Item
-                actions={[
-                  item.subscribe ? (
-                    <StarFilled onClick={() => unsubStock(item, index)} />
-                  ) : (
-                    <StarOutlined onClick={() => subStock(item, index)} />
-                  ),
-                ]}
+                // actions={[
+                //   item.subscribe ? (
+                //     <StarFilled onClick={() => unsubStock(item, index)} />
+                //   ) : (
+                //     <StarOutlined onClick={() => subStock(item, index)} />
+                //   ),
+                // ]}
               >
                 <List.Item.Meta
                   title={
@@ -157,16 +157,16 @@ function Main() {
         >
           <List
             itemLayout="horizontal"
-            dataSource={Object.values(suggestMap).filter((d) => !d.subscribe)}
+            dataSource={Object.values(suggestMap).filter((d) => d.today)}
             renderItem={(item, index) => (
               <List.Item
-                actions={[
-                  item.subscribe ? (
-                    <StarFilled onClick={() => unsubStock(item, index)} />
-                  ) : (
-                    <StarOutlined onClick={() => subStock(item, index)} />
-                  ),
-                ]}
+                // actions={[
+                //   item.subscribe ? (
+                //     <StarFilled onClick={() => unsubStock(item, index)} />
+                //   ) : (
+                //     <StarOutlined onClick={() => subStock(item, index)} />
+                //   ),
+                // ]}
               >
                 <List.Item.Meta
                   title={
@@ -176,6 +176,7 @@ function Main() {
                   }
                   description={
                     <div>
+                      <p style={{ margin: 0 }}>현재가 : {item.close}원</p>
                       <p style={{ margin: 0 }}>추천가 : {item.buy_price}원</p>
                       <p style={{ margin: 0 }}>추천일 : {item.date}</p>
                     </div>

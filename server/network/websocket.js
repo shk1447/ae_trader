@@ -24,22 +24,22 @@ module.exports = function (server) {
     sessionParser(req, {}, async () => {
       if (data && Array.isArray(data) && data.length > 0) {
         try {
-          const stockFavorite = new connector.types.StockFavorite(
-            connector.database
-          );
+          // const stockFavorite = new connector.types.StockFavorite(
+          //   connector.database
+          // );
 
-          const rows = data.map((code) => {
-            return {
-              user_id: req.session.passport.user.id,
-              code: code,
-              meta: "{}",
-            };
-          });
+          // const rows = data.map((code) => {
+          //   return {
+          //     user_id: req.session.passport.user.id,
+          //     code: code,
+          //     meta: "{}",
+          //   };
+          // });
 
-          await stockFavorite
-            .insert(rows)
-            .onConflict(["code", "user_id"])
-            .merge();
+          // await stockFavorite
+          //   .insert(rows)
+          //   .onConflict(["code", "user_id"])
+          //   .merge();
 
           if (!client["stock/subscribe"]) client["stock/subscribe"] = [];
           client["stock/subscribe"] = client["stock/subscribe"].concat(data);
@@ -56,14 +56,15 @@ module.exports = function (server) {
     sessionParser(req, {}, async () => {
       try {
         if (data && Array.isArray(data) && data.length > 0) {
-          const stockFavorite = new connector.types.StockFavorite(
-            connector.database
-          );
+          // const stockFavorite = new connector.types.StockFavorite(
+          //   connector.database
+          // );
 
-          await stockFavorite.delete({
-            code: data[0],
-            user_id: req.session.passport.user.id,
-          });
+          // await stockFavorite.delete({
+          //   code: data[0],
+          //   user_id: req.session.passport.user.id,
+          // });
+          
           data.forEach((d) => {
             client["stock/subscribe"].splice(
               client["stock/subscribe"].indexOf(d),
