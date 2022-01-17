@@ -57,15 +57,13 @@ const collectFunc = async (code, days) => {
       let rows = [];
       let recommended_rows = [];
       const data = await collector.getSise(item.stock_code, days);
-      
+
       // console.log(data)
-      
+
       if (data.length > 0) {
-        const origin_data = await stockData.getTable().where(
-          "date",
-          "<",
-          data[0].date
-        );
+        const origin_data = await stockData
+          .getTable()
+          .where("date", "<", data[0].date);
         const all_data = origin_data.concat(data).map((d) => {
           if (d.meta) {
             d.meta = JSON.parse(d.meta);
@@ -74,10 +72,10 @@ const collectFunc = async (code, days) => {
         });
 
         let prev_result;
-        
+
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
           let row = all_data[i];
-          
+
           row["code"] = item.stock_code;
           try {
             const getChangeRate = (arr) => {
@@ -218,9 +216,7 @@ const collectFunc = async (code, days) => {
           if (rows.length > 50) {
             await stockData.batchInsert(rows);
           } else {
-            await stockData.insert(rows)
-              .onConflict(["code", "date"])
-              .merge();
+            await stockData.insert(rows).onConflict(["code", "date"]).merge();
           }
         }
 
@@ -229,7 +225,8 @@ const collectFunc = async (code, days) => {
           if (recommended_rows.length > 50) {
             await stockData.batchInsert(recommended_rows);
           } else {
-            await stockData.insert(recommended_rows)
+            await stockData
+              .insert(recommended_rows)
               .onConflict(["code", "date"])
               .merge();
           }
@@ -264,7 +261,7 @@ const status_job_func = async () => {
     const stockData = new connector.types.StockData(connector.database);
     stockData.table_name = "stock_data_" + code;
 
-    let data = await stockData.getTable().orderBy('date', 'desc').limit(1);
+    let data = await stockData.getTable().orderBy("date", "desc").limit(1);
 
     let curr_data = data[data.length - 1];
     curr_data["meta"] = JSON.parse(curr_data["meta"]);
@@ -306,8 +303,8 @@ const status_job_func = async () => {
             code: curr_data.code,
             close: curr_data.close,
             low: curr_data.low,
-            real_buy_price: convertToHoga(buy_price/buy_count),
-            real_sell_price: convertToHoga(sell_price/count),
+            real_buy_price: convertToHoga(buy_price / buy_count),
+            real_sell_price: convertToHoga(sell_price / count),
           },
           { "stock/subscribe": curr_data.code },
         ],
@@ -320,7 +317,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8,14,15 * * 1-5",
+    "50 8-15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -328,15 +325,15 @@ if (cluster.isMaster) {
   );
   collect_job.start();
 
-  var publish_job = new CronJob(
-    "*/1 9-15 * * *",
-    status_job_func,
-    null,
-    false,
-    "Asia/Seoul"
-  );
+  // var publish_job = new CronJob(
+  //   "*/1 9-15 * * *",
+  //   status_job_func,
+  //   null,
+  //   false,
+  //   "Asia/Seoul"
+  // );
 
-  publish_job.start();
+  // publish_job.start();
 } else {
   console.log("no master");
 }
@@ -432,133 +429,40 @@ module.exports = {
       res.status(200).send("OK");
     },
     suggest: async (req, res, next) => {
-      const expected_rate = req.query.rate ? parseFloat(req.query.rate) : 105;
-      const auto =
-        req.query.auto !== undefined ? JSON.parse(req.query.auto) : true;
       const req_date = req.query.date
         ? new Date(req.query.date).getTime() - 32400000
         : new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
-      const query_date = moment(req_date).add(-60, "day").unix() * 1000;
+      // var week = new Array(
+      //   "일요일",
+      //   "월요일",
+      //   "화요일",
+      //   "수요일",
+      //   "목요일",
+      //   "금요일",
+      //   "토요일"
+      // );
+      // const day_label = (req_date.getDay() % 6) - 4;
+      const query_date = moment(req_date).add(-7, "day").unix() * 1000;
 
-      const _stockList = new connector.types.StockList(connector.database);
       const stockList = new connector.types.StockData(connector.database);
-      const origin_data = await stockList
+      let origin_data = await stockList
         .getTable()
-        .where("date", ">=", query_date)
-        .andWhere("date", "<=", req_date);
-      let origin_map = {};
-      const origin_list = await _stockList.select();
-      origin_list.forEach((item) => {
-        origin_map[item.stock_code] = item;
+        .where("date", "<=", req_date)
+        .andWhere("date", ">=", query_date);
+
+      var ret = {};
+      origin_data.forEach((d) => {
+        d["meta"] = JSON.parse(d.meta);
+        ret[d.code] = {
+          Code: d.code,
+          Close: d.close,
+          BuyPrice: convertToHoga(d.meta.insight.support_price),
+          TradePower: 0,
+          IsBuy: false,
+          Date: d.meta.date,
+        };
       });
-      const result = [];
-
-      const nextStep = async (step) => {
-        if (step < origin_data.length) {
-          var item = origin_data[step];
-          item["meta"] = JSON.parse(item.meta);
-          const stockData = new connector.types.StockData(connector.database);
-          stockData.table_name = "stock_data_" + item.code;
-
-          let data = await stockData
-            .getTable()
-            .where("date", ">", item.date)
-            .andWhere("date", "<=", req_date);
-          data = data.map((d) => {
-            d["meta"] = JSON.parse(d.meta);
-            return d;
-          });
-          let curr_data = data[data.length - 1];
-
-          if (data.length > 0) {
-            var max_point = [...data].sort((a, b) => b.high - a.high)[0];
-            var high_rate = (max_point.high / item.close) * 100;
-
-            const getChangeRate = (arr) => {
-              var ret_arr = [];
-              if (arr.length > 0) {
-                arr.reduce((prev, curr) => {
-                  ret_arr.push(curr - prev);
-                  return curr;
-                });
-              }
-              if (ret_arr.length > 1) {
-                ret_arr = getChangeRate(ret_arr);
-              }
-              return ret_arr;
-            };
-
-            if (high_rate < expected_rate) {
-              var support_arr = [...data].map((d) => {
-                let count = 1;
-                let buy_price = d.close;
-                if (d.meta.insight && d.meta.insight.support_price) {
-                  buy_price += d.meta.insight.support_price;
-                  count++;
-                }
-
-                if (d.meta.band && d.meta.band.lower) {
-                  buy_price += d.meta.band.lower;
-                  count++;
-                }
-
-                let support_price = buy_price / count;
-
-                return support_price;
-              });
-              const change_rate = getChangeRate(support_arr);
-              let _buy_price = _.mean(support_arr);
-
-              result.push({
-                code: item.code,
-                name: origin_map[item.code].stock_name,
-                close: curr_data.close,
-                low: curr_data.low,
-                power: curr_data.meta.curr_power,
-                date: moment(item.date).format("YYYY-MM-DD"),
-                change_rate: change_rate,
-                buy_price: convertToHoga(_buy_price),
-                real_buy_price: convertToHoga(_buy_price),
-                real_sell_price: 0,
-                band:curr_data.meta.band,
-                isBuy:
-                  _buy_price >= curr_data.low && _buy_price <= curr_data.close,
-              });
-            }
-          } else {
-            var _buy_price = item.meta.support_price + item.close;
-            if (item.meta.cloud) {
-              _buy_price =
-                (item.meta.cloud.conversion + item.meta.cloud.base) / 2;
-            }
-            result.push({
-              code: item.code,
-              name: origin_map[item.code].stock_name,
-              close: item.close,
-              low: item.low,
-              power: item.meta.curr_power,
-              date: moment(item.date).format("YYYY-MM-DD"),
-              buy_price: convertToHoga(_buy_price),
-              real_buy_price: convertToHoga(_buy_price),
-              real_sell_price: 0,
-              band:item.meta.band,
-              change_rate: item.meta.long_change_rate,
-              isBuy: _buy_price >= item.low && _buy_price <= item.close,
-            });
-          }
-          nextStep(step + 1);
-        } else {
-          result.sort((prev, curr) => curr.power - prev.power);
-          if (auto) {
-            res.status(200).send(result.filter((d) => d.close <= d.buy_price));
-          } else {
-            res
-              .status(200)
-              .send(result.filter((d) => d.change_rate[0] > 0 && d.isBuy));
-          }
-        }
-      };
-      await nextStep(0);
+      res.status(200).send(ret);
     },
     status: async (req, res, next) => {
       // 최종 매도에 대한 결정 및 가격 제공 ( 테스트 필요함. )
@@ -567,12 +471,24 @@ module.exports = {
         ? new Date(req.query.date).getTime() - 32400000
         : new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
 
-      await collectFunc({ stock_code: code }, 1);
-
       const stockData = new connector.types.StockData(connector.database);
       stockData.table_name = "stock_data_" + code;
 
-      let data = await stockData.getTable().where("date", "<=", req_date);
+      let old_data = await stockData
+        .getTable()
+        .where("date", "<=", req_date)
+        .orderBy("date", "desc")
+        .limit(1);
+
+      let prev_data = old_data[old_data.length - 1];
+
+      await collectFunc({ stock_code: code }, 1);
+
+      let data = await stockData
+        .getTable()
+        .where("date", "<=", req_date)
+        .orderBy("date", "desc")
+        .limit(1);
 
       let curr_data = data[data.length - 1];
       curr_data["meta"] = JSON.parse(curr_data["meta"]);
@@ -580,7 +496,7 @@ module.exports = {
       let count = 1;
       let buy_count = 1;
       let sell_price = curr_data.low;
-      let buy_price = curr_data.close;
+      let buy_price = curr_data.high;
 
       if (curr_data.meta.band) {
         sell_price += curr_data.meta.band.upper;
@@ -605,23 +521,30 @@ module.exports = {
         buy : 현재 사야되나 말아야되나 정보 제공 boolean
       */
 
-      process.send({
-        action: "LightWS.send",
-        args: [
-          "stock",
-          { publish: [{ code: curr_data.code, close: curr_data.close }] },
-          { subscribe: "000020" },
-        ],
-      });
-
+      // process.send({
+      //   action: "LightWS.send",
+      //   args: [
+      //     "stock",
+      //     { publish: [{ code: curr_data.code, close: curr_data.close }] },
+      //     { subscribe: "000020" },
+      //   ],
+      // });
+      sell_price = convertToHoga(sell_price / count);
+      buy_price = convertToHoga(buy_price / buy_count);
       res.status(200).send({
-        status: curr_data.meta.insight.resist_price ? "매도" : "홀딩",
         code: curr_data.code,
         close: curr_data.close,
-
-        sell_price: convertToHoga(sell_price / count),
-        real_buy_price: convertToHoga(buy_price / buy_count),
-        buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist,
+        low: curr_data.low,
+        sell_price: sell_price,
+        buy_price: buy_price,
+        buy:
+          curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+          prev_data.close < buy_price &&
+          buy_price <= curr_data.close,
+        sell:
+          curr_data.meta.insight.support <= curr_data.meta.insight.resist &&
+          prev_data.close >= sell_price &&
+          sell_price > curr_data.close,
       });
     },
     test: async (req, res, next) => {
@@ -649,5 +572,59 @@ module.exports = {
       res.status(200).send(data.map((d) => d.code));
     },
   },
-  post: {},
+  post: {
+    check: async (req, res, next) => {
+      var ret = "대기";
+      var prev_result;
+      for (var i = req.body.data.length - 2; i < req.body.data.length; i++) {
+        let result = {
+          curr_trend: 0,
+          init_trend: 0,
+          segmentation: [],
+          upward_point: [],
+          downward_point: [],
+        };
+
+        analysis.segmentation(
+          [...req.body.data].splice(0, i + 1),
+          result,
+          "close"
+        );
+        let insight = analysis.cross_point(
+          result,
+          req.body.data[req.body.data.length - 1],
+          "close"
+        );
+        if (prev_result) {
+          if (
+            !prev_result.support_price &&
+            insight.support_price &&
+            insight.support >= insight.resist
+          ) {
+            // 매수
+            ret = "매수";
+          }
+
+          if (
+            !prev_result.resist_price &&
+            insight.resist_price &&
+            insight.support <= insight.resist
+          ) {
+            // 매도
+            ret = "매도";
+          }
+        }
+
+        prev_result = insight;
+      }
+      console.log(
+        req.body.code,
+        ret,
+        prev_result.support >= prev_result.resist,
+        prev_result.support_price,
+        prev_result.resist_price
+      );
+      res.status(200).send(ret);
+    },
+  },
 };
