@@ -317,7 +317,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8-15 * * 1-5",
+    "20 9-16 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -539,13 +539,9 @@ module.exports = {
         buy_price: buy_price,
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-          ((prev_data.close < buy_price*1.03 &&
-          buy_price <= curr_data.close) || (prev_data.close < sell_price &&
-            sell_price*0.97 <= curr_data.close)),
-        sell:
-          curr_data.meta.insight.support <= curr_data.meta.insight.resist &&
-          prev_data.close >= sell_price &&
-          sell_price > curr_data.close,
+          prev_data.close < buy_price * 1.03 &&
+          buy_price <= curr_data.close,
+        sell: prev_data.close <= sell_price && sell_price < curr_data.close,
       });
     },
     test: async (req, res, next) => {
