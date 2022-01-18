@@ -496,7 +496,7 @@ module.exports = {
       let count = 1;
       let buy_count = 1;
       let sell_price = curr_data.low;
-      let buy_price = curr_data.high;
+      let buy_price = curr_data.close;
 
       if (curr_data.meta.band) {
         sell_price += curr_data.meta.band.upper;
@@ -539,8 +539,9 @@ module.exports = {
         buy_price: buy_price,
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-          prev_data.close < buy_price &&
-          buy_price <= curr_data.close,
+          ((prev_data.close < buy_price*1.03 &&
+          buy_price <= curr_data.close) || (prev_data.close < sell_price &&
+            sell_price*0.97 <= curr_data.close)),
         sell:
           curr_data.meta.insight.support <= curr_data.meta.insight.resist &&
           prev_data.close >= sell_price &&
