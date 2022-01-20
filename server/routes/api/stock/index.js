@@ -318,7 +318,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "20 9-16 * * 1-5",
+    "50 8-15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -453,17 +453,19 @@ module.exports = {
 
       var ret = {};
       origin_data.forEach((d) => {
-        d["meta"] = JSON.parse(d.meta);
-        var IsToday = d.meta.date == moment().format('YYYY-MM-DD')
-        ret[d.code] = {
-          Code: d.code,
-          Close: d.close,
-          BuyPrice: convertToHoga(d.meta.insight.support_price),
-          TradePower: 0,
-          IsBuy: false,
-          Date: d.meta.date,
-          IsToday: IsToday
-        };
+        if(d.volume > 0) {
+          d["meta"] = JSON.parse(d.meta);
+          var IsToday = d.meta.date == moment().format('YYYY-MM-DD')
+          ret[d.code] = {
+            Code: d.code,
+            Close: d.close,
+            BuyPrice: convertToHoga(d.meta.insight.support_price),
+            TradePower: 0,
+            IsBuy: false,
+            Date: d.meta.date,
+            IsToday: IsToday
+          };
+        }
       });
       res.status(200).send(ret);
     },
@@ -543,7 +545,7 @@ module.exports = {
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
           prev_data.close <= buy_price &&
-          buy_price < curr_data.close,
+          buy_price < curr_data.close && curr_data.volume > 0,
         sell: prev_data.close <= sell_price && sell_price < curr_data.close,
       });
     },
