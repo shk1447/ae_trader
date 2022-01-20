@@ -14,6 +14,7 @@ const {
   OBV,
   SMA,
 } = require("technicalindicators");
+const { Console } = require("console");
 
 let collecting = false;
 
@@ -453,6 +454,7 @@ module.exports = {
       var ret = {};
       origin_data.forEach((d) => {
         d["meta"] = JSON.parse(d.meta);
+        var IsToday = d.meta.date == moment().format('YYYY-MM-DD')
         ret[d.code] = {
           Code: d.code,
           Close: d.close,
@@ -460,6 +462,7 @@ module.exports = {
           TradePower: 0,
           IsBuy: false,
           Date: d.meta.date,
+          IsToday: IsToday
         };
       });
       res.status(200).send(ret);
@@ -539,8 +542,8 @@ module.exports = {
         buy_price: buy_price,
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-          prev_data.close < buy_price * 1.03 &&
-          buy_price <= curr_data.close,
+          prev_data.close <= buy_price &&
+          buy_price < curr_data.close,
         sell: prev_data.close <= sell_price && sell_price < curr_data.close,
       });
     },
@@ -571,56 +574,32 @@ module.exports = {
   },
   post: {
     check: async (req, res, next) => {
-      var ret = "대기";
-      var prev_result;
-      for (var i = req.body.data.length - 2; i < req.body.data.length; i++) {
-        let result = {
-          curr_trend: 0,
-          init_trend: 0,
-          segmentation: [],
-          upward_point: [],
-          downward_point: [],
-        };
+      var ret = false;
 
-        analysis.segmentation(
-          [...req.body.data].splice(0, i + 1),
-          result,
-          "close"
-        );
-        let insight = analysis.cross_point(
-          result,
-          req.body.data[req.body.data.length - 1],
-          "close"
-        );
-        if (prev_result) {
-          if (
-            !prev_result.support_price &&
-            insight.support_price &&
-            insight.support >= insight.resist
-          ) {
-            // 매수
-            ret = "매수";
-          }
+      let result = {
+        curr_trend: 0,
+        init_trend: 0,
+        segmentation: [],
+        upward_point: [],
+        downward_point: [],
+      };
 
-          if (
-            !prev_result.resist_price &&
-            insight.resist_price &&
-            insight.support <= insight.resist
-          ) {
-            // 매도
-            ret = "매도";
-          }
-        }
-
-        prev_result = insight;
-      }
-      console.log(
-        req.body.code,
-        ret,
-        prev_result.support >= prev_result.resist,
-        prev_result.support_price,
-        prev_result.resist_price
+      analysis.segmentation(
+        req.body.data,
+        result,
+        "close"
       );
+      let insight = analysis.cross_point(
+        result,
+        req.body.data[req.body.data.length - 1],
+        "close"
+      );
+
+      console.log(insight)
+
+      if(insight.support <= insight.resist && !isNaN(insight.resist_price)) {
+        ret = true;
+      }
       res.status(200).send(ret);
     },
   },
