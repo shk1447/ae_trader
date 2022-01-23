@@ -318,7 +318,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8-15 * * 1-5",
+    "50 8,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -430,32 +430,26 @@ module.exports = {
       res.status(200).send("OK");
     },
     suggest: async (req, res, next) => {
-      const req_date = req.query.date
-        ? new Date(req.query.date).getTime() - 32400000
-        : new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
-      // var week = new Array(
-      //   "일요일",
-      //   "월요일",
-      //   "화요일",
-      //   "수요일",
-      //   "목요일",
-      //   "금요일",
-      //   "토요일"
-      // );
-      // const day_label = (req_date.getDay() % 6) - 4;
-      const query_date = moment(req_date).add(-7, "day").unix() * 1000;
-
       const stockList = new connector.types.StockData(connector.database);
+
+      const dates = await stockList
+        .getTable()
+        .groupBy("date")
+        .orderBy("date", "desc")
+        .limit(2);
+
+      console.log(dates);
+
       let origin_data = await stockList
         .getTable()
-        .where("date", "<=", req_date)
-        .andWhere("date", ">=", query_date);
+        .where("date", "<=", dates[0].date)
+        .andWhere("date", ">=", dates[1].date);
 
       var ret = {};
       origin_data.forEach((d) => {
-        if(d.volume > 0) {
+        if (d.volume > 0) {
           d["meta"] = JSON.parse(d.meta);
-          var IsToday = d.meta.date == moment().format('YYYY-MM-DD')
+          var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
           ret[d.code] = {
             Code: d.code,
             Close: d.close,
@@ -463,7 +457,7 @@ module.exports = {
             TradePower: 0,
             IsBuy: false,
             Date: d.meta.date,
-            IsToday: IsToday
+            IsToday: IsToday,
           };
         }
       });
@@ -502,6 +496,7 @@ module.exports = {
       let buy_count = 1;
       let sell_price = curr_data.low;
       let buy_price = curr_data.close;
+      let middle_price = curr_data.meta.band.middle;
 
       if (curr_data.meta.band) {
         sell_price += curr_data.meta.band.upper;
@@ -536,16 +531,21 @@ module.exports = {
       // });
       sell_price = convertToHoga(sell_price / count);
       buy_price = convertToHoga(buy_price / buy_count);
+      middle_price = convertToHoga((sell_price + buy_price + middle_price) / 3);
       res.status(200).send({
         code: curr_data.code,
         close: curr_data.close,
         low: curr_data.low,
         sell_price: sell_price,
+        middle_price: middle_price,
         buy_price: buy_price,
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-          prev_data.close <= buy_price &&
-          buy_price < curr_data.close && curr_data.volume > 0,
+          ((prev_data.close <= sell_price && sell_price < curr_data.close) ||
+            (prev_data.close <= middle_price &&
+              middle_price < curr_data.close) ||
+            (prev_data.close <= buy_price && buy_price < curr_data.close)) &&
+          curr_data.volume > 0,
         sell: prev_data.close <= sell_price && sell_price < curr_data.close,
       });
     },
@@ -586,20 +586,16 @@ module.exports = {
         downward_point: [],
       };
 
-      analysis.segmentation(
-        req.body.data,
-        result,
-        "close"
-      );
+      analysis.segmentation(req.body.data, result, "close");
       let insight = analysis.cross_point(
         result,
         req.body.data[req.body.data.length - 1],
         "close"
       );
 
-      console.log(insight)
+      console.log(insight);
 
-      if(insight.support <= insight.resist && !isNaN(insight.resist_price)) {
+      if (insight.support <= insight.resist && !isNaN(insight.resist_price)) {
         ret = true;
       }
       res.status(200).send(ret);
