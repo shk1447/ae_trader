@@ -246,7 +246,7 @@ const collectFunc = async (code, days) => {
 
 const collect_job_func = async () => {
   const code = {};
-  const days = 2;
+  const days = 3;
 
   collectFunc(code, days);
 };
@@ -318,7 +318,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8,15 * * 1-5",
+    "10 9,15,16 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -438,8 +438,6 @@ module.exports = {
         .orderBy("date", "desc")
         .limit(2);
 
-      console.log(dates);
-
       let origin_data = await stockList
         .getTable()
         .where("date", "<=", dates[0].date)
@@ -541,9 +539,7 @@ module.exports = {
         buy_price: buy_price,
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-          ((prev_data.close <= sell_price && sell_price < curr_data.close) ||
-            (prev_data.close <= middle_price &&
-              middle_price < curr_data.close) ||
+          ((prev_data.close <= middle_price && middle_price < curr_data.close) ||
             (prev_data.close <= buy_price && buy_price < curr_data.close)) &&
           curr_data.volume > 0,
         sell: prev_data.close <= sell_price && sell_price < curr_data.close,
@@ -595,7 +591,7 @@ module.exports = {
 
       console.log(insight);
 
-      if (insight.support <= insight.resist && !isNaN(insight.resist_price)) {
+      if (!isNaN(insight.resist_price) && insight.resist_price <= req.body.data[req.body.data.length - 1].close) {
         ret = true;
       }
       res.status(200).send(ret);
