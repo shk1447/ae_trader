@@ -192,13 +192,15 @@ const collectFunc = async (code, days) => {
               ) {
                 row["marker"] = "매수";
                 let futures = all_data.slice(i + 1, i + 61);
-                if (futures.length == 60) {
+                if (futures.length > 0) {
                   var max_point = [...futures].sort(
                     (a, b) => b.high - a.high
                   )[0];
                   var high_rate = (max_point.high / row.close) * 100;
 
                   row["result"] = high_rate;
+                } else {
+                  row["result"] = 100;
                 }
                 recommended_rows.push(row);
               }
@@ -246,7 +248,7 @@ const collectFunc = async (code, days) => {
 
 const collect_job_func = async () => {
   const code = {};
-  const days = 3;
+  const days = 1;
 
   collectFunc(code, days);
 };
@@ -318,7 +320,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "10 9,15,16 * * 1-5",
+    "3 9,15,16 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -436,12 +438,13 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(2);
+        .limit(5);
 
       let origin_data = await stockList
         .getTable()
-        .where("date", "<=", dates[0].date)
-        .andWhere("date", ">=", dates[1].date);
+        .where("result", "<", 105)
+        .andWhere("date", "<=", dates[0].date)
+        .andWhere("date", ">=", dates[dates.length - 1].date);
 
       var ret = {};
       origin_data.forEach((d) => {
@@ -475,11 +478,12 @@ module.exports = {
         .getTable()
         .where("date", "<=", req_date)
         .orderBy("date", "desc")
-        .limit(1);
+        .limit(2);
 
-      let prev_data = old_data[old_data.length - 1];
+      let yesterday_data = old_data[1];
+      let prev_data = old_data[0];
 
-      await collectFunc({ stock_code: code }, 1);
+      await collectFunc({ stock_code: code }, 5);
 
       let data = await stockData
         .getTable()
@@ -527,16 +531,22 @@ module.exports = {
       //     { subscribe: "000020" },
       //   ],
       // });
-      sell_price = convertToHoga(sell_price / count);
-      buy_price = convertToHoga(buy_price / buy_count);
-      middle_price = convertToHoga((sell_price + buy_price + middle_price) / 3);
+      
+      sell_price = Math.abs(convertToHoga(sell_price / count));
+      buy_price = Math.abs(convertToHoga(buy_price / buy_count));
+      middle_price = Math.abs(convertToHoga((sell_price + buy_price + middle_price) / 3));
       res.status(200).send({
         code: curr_data.code,
         close: curr_data.close,
         low: curr_data.low,
+        prev_open: yesterday_data.open,
         sell_price: sell_price,
         middle_price: middle_price,
         buy_price: buy_price,
+        init_buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+        ((yesterday_data.open <= middle_price && middle_price < curr_data.close) ||
+          (yesterday_data.open <= buy_price && buy_price < curr_data.close)) &&
+          (curr_data.close < (sell_price+middle_price)/2 || curr_data.close < (buy_price+middle_price)/2) && curr_data.volume > 0,
         buy:
           curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
           ((prev_data.close <= middle_price && middle_price < curr_data.close) ||
@@ -591,7 +601,7 @@ module.exports = {
 
       console.log(insight);
 
-      if (!isNaN(insight.resist_price) && insight.resist_price <= req.body.data[req.body.data.length - 1].close) {
+      if (!isNaN(insight.resist_price)) {
         ret = true;
       }
       res.status(200).send(ret);
