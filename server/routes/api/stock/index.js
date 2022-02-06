@@ -73,49 +73,13 @@ const collectFunc = async (code, days) => {
         });
 
         let prev_result;
+        let prev_sell_signal;
 
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
           let row = all_data[i];
 
           row["code"] = item.stock_code;
           try {
-            const getChangeRate = (arr) => {
-              var ret_arr = [];
-              if (arr.length > 0) {
-                arr.reduce((prev, curr) => {
-                  ret_arr.push(curr - prev);
-                  return curr;
-                });
-              }
-              if (ret_arr.length > 1) {
-                ret_arr = getChangeRate(ret_arr);
-              }
-              return ret_arr;
-            };
-
-            var period_arr = [...all_data].slice(i - 20, i).map((d) => {
-              var day_power = d.close - d.open;
-              var down_power = d.high - Math.min(d.open, d.close);
-              var up_power = Math.max(d.open, d.close) - d.low;
-              var power =
-                (up_power - down_power + day_power) *
-                (d.volume / item.stock_total);
-              return power;
-            });
-            const long_power = _.mean(period_arr);
-            const long_change_rate = getChangeRate(period_arr);
-            const curr_power = _.mean(
-              [...all_data].slice(i - 3, i).map((d) => {
-                var day_power = d.close - d.open;
-                var down_power = d.high - Math.min(d.open, d.close);
-                var up_power = Math.max(d.open, d.close) - d.low;
-                var power =
-                  (up_power - down_power + day_power) *
-                  (d.volume / item.stock_total);
-                return power;
-              })
-            );
-
             let result = {
               curr_trend: 0,
               init_trend: 0,
@@ -129,6 +93,7 @@ const collectFunc = async (code, days) => {
               result,
               "close"
             );
+
             let insight = analysis.cross_point(result, row, "close");
 
             result.segmentation.sort((a, b) => a.from.date - b.from.date);
@@ -142,39 +107,9 @@ const collectFunc = async (code, days) => {
               upward_point: result.upward_point.length,
               downward_point: result.downward_point.length,
               insight: insight,
-              curr_power: curr_power,
-              long_power: long_power,
-              long_change_rate: long_change_rate,
               date: moment(row.date).format("YYYY-MM-DD"),
             };
 
-            let clouds = new IchimokuCloud({
-              high: [...all_data].slice(i - 77, i).map((d) => d.high),
-              low: [...all_data].slice(i - 77, i).map((d) => d.low),
-              conversionPeriod: 9,
-              basePeriod: 26,
-              spanPeriod: 52,
-              displacement: 26,
-            }).result;
-
-            let bands = new BollingerBands({
-              period: 20,
-              stdDev: 2,
-              values: [...all_data].slice(i - 20, i).map((d) => d.close),
-            }).result;
-            if (bands.length > 0) {
-              let band_data = bands;
-              meta["band"] = band_data[0];
-            }
-
-            if (clouds.length > 0) {
-              meta["cloud"] = {
-                spanA: clouds[0].spanA,
-                spanB: clouds[0].spanB,
-                conversion: clouds[clouds.length - 1].conversion,
-                base: clouds[clouds.length - 1].base,
-              };
-            }
             /*
               spanA > spanB 양운
               spanA < spanB 음운
@@ -188,7 +123,7 @@ const collectFunc = async (code, days) => {
               if (
                 !prev_result.meta.insight.support_price &&
                 insight.support_price &&
-                insight.support > insight.resist
+                insight.support > prev_result.meta.insight.resist
               ) {
                 row["marker"] = "매수";
                 let futures = all_data.slice(i + 1, i + 61);
@@ -202,6 +137,7 @@ const collectFunc = async (code, days) => {
                 } else {
                   row["result"] = 100;
                 }
+
                 recommended_rows.push(row);
               }
             }
@@ -320,7 +256,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "5 15,16 * * 1-5",
+    "50 8,14,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -438,11 +374,11 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(5);
+        .limit(20);
 
       let origin_data = await stockList
         .getTable()
-        .where("result", "<", 105)
+        .where("result", "<", 103)
         .andWhere("date", "<=", dates[0].date)
         .andWhere("date", ">=", dates[dates.length - 1].date);
 
@@ -451,9 +387,11 @@ module.exports = {
         if (d.volume > 0) {
           d["meta"] = JSON.parse(d.meta);
           var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
+
           ret[d.code] = {
             Code: d.code,
             Close: d.close,
+            Low: d.low,
             BuyPrice: convertToHoga(d.meta.insight.support_price),
             TradePower: 0,
             IsBuy: false,
@@ -481,9 +419,11 @@ module.exports = {
         .limit(2);
 
       let yesterday_data = old_data[1];
+      yesterday_data["meta"] = JSON.parse(yesterday_data["meta"]);
       let prev_data = old_data[0];
+      prev_data["meta"] = JSON.parse(prev_data["meta"]);
 
-      await collectFunc({ stock_code: code }, 5);
+      await collectFunc({ stock_code: code }, 20);
 
       let data = await stockData
         .getTable()
@@ -494,81 +434,68 @@ module.exports = {
       let curr_data = data[data.length - 1];
       curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
-      let count = 1;
-      let buy_count = 1;
-      let sell_price = curr_data.low;
-      let buy_price = curr_data.close;
-      let middle_price = curr_data.meta.band.middle;
+      var buy_price = yesterday_data.close;
 
-      if (curr_data.meta.band) {
-        sell_price += curr_data.meta.band.upper;
-        buy_price += curr_data.meta.band.lower;
-        buy_count++;
-        count++;
+      if (curr_data.meta.insight.support_price) {
+        buy_price = (buy_price + curr_data.meta.insight.support_price) / 2;
       }
 
-      if (curr_data.meta.insight && curr_data.meta.insight.resist_price) {
-        sell_price += curr_data.meta.insight.resist_price;
-        count++;
+      if (curr_data.meta.insight.future_resist_price) {
+        buy_price =
+          (buy_price + curr_data.meta.insight.future_resist_price) / 2;
       }
 
-      if (curr_data.meta.insight && curr_data.meta.insight.support_price) {
-        buy_price += curr_data.meta.insight.support_price;
-        buy_count++;
-      }
+      buy_price = Math.abs(convertToHoga(buy_price));
 
-      /*
-        status : 만약 샀다면, 매도거나 홀딩상태 제공!
-        sell_price : 매도 가능한 저항가격 제공!
-        buy : 현재 사야되나 말아야되나 정보 제공 boolean
-      */
-
-      // process.send({
-      //   action: "LightWS.send",
-      //   args: [
-      //     "stock",
-      //     { publish: [{ code: curr_data.code, close: curr_data.close }] },
-      //     { subscribe: "000020" },
-      //   ],
-      // });
-      
-      sell_price = Math.abs(convertToHoga(sell_price / count));
-      buy_price = Math.abs(convertToHoga(buy_price / buy_count));
-      middle_price = Math.abs(convertToHoga((sell_price + buy_price + middle_price) / 3));
       res.status(200).send({
         code: curr_data.code,
         close: curr_data.close,
         low: curr_data.low,
-        prev_open: yesterday_data.open,
-        sell_price: sell_price,
-        middle_price: middle_price,
         buy_price: buy_price,
-        init_buy: curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-        ((yesterday_data.open <= middle_price && middle_price < curr_data.close) ||
-          (yesterday_data.open <= buy_price && buy_price < curr_data.close)) &&
-          (curr_data.close < (sell_price+middle_price)/1.5 || curr_data.close < (buy_price+middle_price)/1.5) && curr_data.volume > 0,
+        init_buy:
+          (!yesterday_data.meta.insight.support_price ||
+            !prev_data.meta.insight.support_price) &&
+          curr_data.meta.insight.support_price &&
+          prev_data.close * 1.05 > curr_data.close &&
+          curr_data.volume > 0
+            ? true
+            : false,
         buy:
-          curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-          ((prev_data.close <= middle_price && middle_price < curr_data.close) ||
-            (prev_data.close <= buy_price && buy_price < curr_data.close)) &&
-          curr_data.volume > 0,
-        sell: prev_data.close <= sell_price && sell_price < curr_data.close,
+          prev_data.close <= buy_price &&
+          buy_price < curr_data.close &&
+          curr_data.volume > 0
+            ? true
+            : false,
       });
     },
     test: async (req, res, next) => {
       // 테스트 : 기간내 5프로 이상 수익 79프로 성공 확인
       const rate = req.query.rate ? parseFloat(req.query.rate) : 105;
       const stockData = new connector.types.StockData(connector.database);
-      const origin_data = await stockData.select();
+      let origin_data = await stockData.select();
+
+      origin_data = origin_data.map((d) => {
+        d.meta = JSON.parse(d.meta);
+
+        return d;
+      });
 
       var good_list = origin_data.filter((d) => d.result > rate);
+      var bad_list = origin_data.filter((d) => d.result > rate);
 
       console.log(
         good_list.length,
         origin_data.filter((d) => d.result).length,
         _.mean(good_list.map((d) => d.result))
       );
-      res.status(200).send();
+      res.status(200).send({
+        good: good_list.map((d) => {
+          return d.code;
+        }),
+        bad: bad_list.map((d) => {
+          return d.code;
+        }),
+      });
     },
     favorite: async (req, res, next) => {
       const stockFavorite = new connector.types.StockFavorite(
@@ -601,7 +528,7 @@ module.exports = {
 
       console.log(insight);
 
-      if (!isNaN(insight.resist_price)) {
+      if (!isNaN(insight.future_support_price)) {
         ret = true;
       }
       res.status(200).send(ret);
