@@ -184,7 +184,7 @@ const collectFunc = async (code, days) => {
 
 const collect_job_func = async () => {
   const code = {};
-  const days = 1;
+  const days = 2;
 
   collectFunc(code, days);
 };
@@ -457,6 +457,7 @@ module.exports = {
             !prev_data.meta.insight.support_price) &&
           curr_data.meta.insight.support_price &&
           prev_data.close * 1.05 > curr_data.close &&
+          curr_data.close >= buy_price &&
           curr_data.volume > 0
             ? true
             : false,
