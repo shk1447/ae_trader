@@ -378,9 +378,10 @@ module.exports = {
 
       let origin_data = await stockList
         .getTable()
-        .where("result", "<", 103)
+        .where("result", "<=", 103)
         .andWhere("date", "<=", dates[0].date)
-        .andWhere("date", ">=", dates[dates.length - 1].date);
+        .andWhere("date", ">=", dates[dates.length - 1].date)
+        .limit(99);
 
       var ret = {};
       origin_data.forEach((d) => {
@@ -434,10 +435,12 @@ module.exports = {
       let curr_data = data[data.length - 1];
       curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
+      var support_price = curr_data.close;
       var buy_price = yesterday_data.close;
 
       if (curr_data.meta.insight.support_price) {
         buy_price = (buy_price + curr_data.meta.insight.support_price) / 2;
+        support_price = (support_price + curr_data.meta.insight.support_price) / 2;
       }
 
       if (curr_data.meta.insight.future_resist_price) {
@@ -446,6 +449,7 @@ module.exports = {
       }
 
       buy_price = Math.abs(convertToHoga(buy_price));
+      support_price = Math.abs(convertToHoga(support_price));
 
       res.status(200).send({
         code: curr_data.code,
@@ -453,18 +457,14 @@ module.exports = {
         low: curr_data.low,
         buy_price: buy_price,
         init_buy:
-          (!yesterday_data.meta.insight.support_price ||
-            !prev_data.meta.insight.support_price) &&
-          curr_data.meta.insight.support_price &&
-          prev_data.close * 1.05 > curr_data.close &&
-          curr_data.close >= buy_price &&
-          curr_data.volume > 0
+          curr_data.meta.insight.support >= yesterday_data.meta.insight.resist &&
+          ((yesterday_data.low <= buy_price && buy_price < curr_data.close) || (yesterday_data.low <= support_price && support_price < curr_data.close))
+          && curr_data.volume > 0
             ? true
             : false,
         buy:
-          prev_data.close <= buy_price &&
-          buy_price < curr_data.close &&
-          curr_data.volume > 0
+          ((prev_data.close <= buy_price && buy_price < curr_data.close) || (prev_data.close <= support_price && support_price < curr_data.close))
+          && curr_data.volume > 0
             ? true
             : false,
       });
