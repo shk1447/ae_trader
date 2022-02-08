@@ -440,7 +440,8 @@ module.exports = {
 
       if (curr_data.meta.insight.support_price) {
         buy_price = (buy_price + curr_data.meta.insight.support_price) / 2;
-        support_price = (support_price + curr_data.meta.insight.support_price) / 2;
+        support_price =
+          (support_price + curr_data.meta.insight.support_price) / 2;
       }
 
       if (curr_data.meta.insight.future_resist_price) {
@@ -457,14 +458,19 @@ module.exports = {
         low: curr_data.low,
         buy_price: buy_price,
         init_buy:
-          curr_data.meta.insight.support >= yesterday_data.meta.insight.resist &&
-          ((yesterday_data.low <= buy_price && buy_price < curr_data.close) || (yesterday_data.low <= support_price && support_price < curr_data.close))
-          && curr_data.volume > 0
+          curr_data.meta.insight.support >=
+            yesterday_data.meta.insight.resist &&
+          ((yesterday_data.low <= buy_price && buy_price < curr_data.close) ||
+            (yesterday_data.low <= support_price &&
+              support_price < curr_data.close)) &&
+          curr_data.volume > 0
             ? true
             : false,
         buy:
-          ((prev_data.close <= buy_price && buy_price < curr_data.close) || (prev_data.close <= support_price && support_price < curr_data.close))
-          && curr_data.volume > 0
+          ((prev_data.close <= buy_price && buy_price < curr_data.close) ||
+            (prev_data.close <= support_price &&
+              support_price < curr_data.close)) &&
+          curr_data.volume > 0
             ? true
             : false,
       });
