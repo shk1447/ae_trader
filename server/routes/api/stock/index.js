@@ -377,29 +377,33 @@ module.exports = {
 
       let origin_data = await stockList
         .getTable()
-        .where("result", "<", 103)
         .andWhere("date", "<=", dates[0].date)
         .andWhere("date", ">=", dates[dates.length - 1].date)
-        .limit(99);
+        .groupBy("code")
+        .orderBy("date", "asc");
 
       var ret = {};
-      origin_data.forEach((d) => {
-        if (d.volume > 0) {
-          d["meta"] = JSON.parse(d.meta);
-          var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
+      origin_data
+        .filter((d) => {
+          return d.result < 103;
+        })
+        .forEach((d) => {
+          if (d.volume > 0) {
+            d["meta"] = JSON.parse(d.meta);
+            var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
 
-          ret[d.code] = {
-            Code: d.code,
-            Close: d.close,
-            Low: d.low,
-            BuyPrice: convertToHoga(d.meta.insight.support_price),
-            TradePower: 0,
-            IsBuy: false,
-            Date: d.meta.date,
-            IsToday: IsToday,
-          };
-        }
-      });
+            ret[d.code] = {
+              Code: d.code,
+              Close: d.close,
+              Low: d.low,
+              BuyPrice: convertToHoga(d.meta.insight.support_price),
+              TradePower: 0,
+              IsBuy: false,
+              Date: d.meta.date,
+              IsToday: IsToday,
+            };
+          }
+        });
       res.status(200).send(ret);
     },
     status: async (req, res, next) => {
