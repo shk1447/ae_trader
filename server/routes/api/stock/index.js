@@ -137,6 +137,8 @@ const collectFunc = async (code, days) => {
                   var high_rate = (max_point.high / row.close) * 100;
 
                   row["result"] = high_rate;
+                } else {
+                  row["result"] = 100;
                 }
 
                 recommended_rows.push(row);
@@ -187,7 +189,7 @@ const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 2;
+  const days = 6;
 
   collectFunc(code, days);
 };
@@ -390,23 +392,28 @@ module.exports = {
         .limit(99);
 
       var ret = {};
-      origin_data.forEach((d) => {
-        if (d.volume > 0) {
-          d["meta"] = JSON.parse(d.meta);
-          var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
+      origin_data
+        .filter((d) => {
+          return d.result < 103;
+        })
+        .forEach((d) => {
+          if (d.volume > 0) {
+            d["meta"] = JSON.parse(d.meta);
+            var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
 
-          ret[d.code] = {
-            Code: d.code,
-            Close: d.close,
-            Low: d.low,
-            BuyPrice: convertToHoga(d.meta.insight.support_price),
-            TradePower: 0,
-            IsBuy: false,
-            Date: d.meta.date,
-            IsToday: IsToday,
-          };
-        }
-      });
+            ret[d.code] = {
+              Code: d.code,
+              Name: d.meta.stock_name,
+              Close: d.close,
+              Low: d.low,
+              BuyPrice: convertToHoga(d.meta.insight.support_price),
+              TradePower: 0,
+              IsBuy: false,
+              Date: d.meta.date,
+              IsToday: IsToday,
+            };
+          }
+        });
       res.status(200).send(ret);
     },
     status: async (req, res, next) => {
@@ -446,7 +453,7 @@ module.exports = {
         });
         support_price = support_price / support_count;
 
-        await collectFunc({ stock_code: code }, 1);
+        await collectFunc({ stock_code: code }, 6);
 
         let data = await stockData
           .getTable()
