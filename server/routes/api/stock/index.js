@@ -120,8 +120,12 @@ const collectFunc = async (code, days) => {
 
             if (prev_result) {
               if (
-                !prev_result.meta.insight.support_price &&
-                insight.support_price &&
+                result.meta.curr_trend > 0 &&
+                ((!prev_result.meta.insight.support_price &&
+                  insight.support_price) ||
+                  (prev_result.meta.insight.resist_price &&
+                    !insight.resist_price)) &&
+                !insight.future_support_price &&
                 insight.support > prev_result.meta.insight.resist
               ) {
                 row["marker"] = "매수";
@@ -133,8 +137,6 @@ const collectFunc = async (code, days) => {
                   var high_rate = (max_point.high / row.close) * 100;
 
                   row["result"] = high_rate;
-                } else {
-                  row["result"] = 100;
                 }
 
                 recommended_rows.push(row);
@@ -182,6 +184,8 @@ const collectFunc = async (code, days) => {
 };
 
 const collect_job_func = async () => {
+  // const data = new connector.types.StockData(connector.database);
+  // await data.truncate();
   const code = {};
   const days = 2;
 
@@ -255,13 +259,13 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8,14,15 * * 1-5",
+    "50 8,15 * * 1-5",
     collect_job_func,
     null,
     false,
     "Asia/Seoul"
   );
-  collect_job.start();
+  // collect_job.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
@@ -344,6 +348,8 @@ module.exports = {
       if (!collecting) {
         collecting = true;
         const collect_job_func = async () => {
+          // const data = new connector.types.StockData(connector.database);
+          // await data.truncate();
           const code = req.query.code ? { stock_code: req.query.code } : {};
           const days = req.query.days ? parseInt(req.query.days) : 5;
 
@@ -373,37 +379,34 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(20);
+        .limit(5);
 
       let origin_data = await stockList
         .getTable()
-        .andWhere("date", "<=", dates[0].date)
+        .where("date", "<=", dates[0].date)
         .andWhere("date", ">=", dates[dates.length - 1].date)
         .groupBy("code")
-        .orderBy("date", "asc");
+        .orderBy("date", "desc")
+        .limit(99);
 
       var ret = {};
-      origin_data
-        .filter((d) => {
-          return d.result < 103;
-        })
-        .forEach((d) => {
-          if (d.volume > 0) {
-            d["meta"] = JSON.parse(d.meta);
-            var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
+      origin_data.forEach((d) => {
+        if (d.volume > 0) {
+          d["meta"] = JSON.parse(d.meta);
+          var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
 
-            ret[d.code] = {
-              Code: d.code,
-              Close: d.close,
-              Low: d.low,
-              BuyPrice: convertToHoga(d.meta.insight.support_price),
-              TradePower: 0,
-              IsBuy: false,
-              Date: d.meta.date,
-              IsToday: IsToday,
-            };
-          }
-        });
+          ret[d.code] = {
+            Code: d.code,
+            Close: d.close,
+            Low: d.low,
+            BuyPrice: convertToHoga(d.meta.insight.support_price),
+            TradePower: 0,
+            IsBuy: false,
+            Date: d.meta.date,
+            IsToday: IsToday,
+          };
+        }
+      });
       res.status(200).send(ret);
     },
     status: async (req, res, next) => {
@@ -415,20 +418,35 @@ module.exports = {
         : new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
       try {
         const stockData = new connector.types.StockData(connector.database);
+        let _suggest_data = await stockData
+          .getTable()
+          .where("code", code)
+          .orderBy("date", "desc")
+          .limit(1);
+
+        let suggest_data = _suggest_data[0];
+        suggest_data["meta"] = JSON.parse(suggest_data["meta"]);
+
         stockData.table_name = "stock_data_" + code;
 
         let old_data = await stockData
           .getTable()
           .where("date", "<=", req_date)
-          .orderBy("date", "desc")
-          .limit(2);
+          .andWhere("date", ">=", suggest_data.date)
+          .orderBy("date", "desc");
 
-        let yesterday_data = old_data[1];
-        yesterday_data["meta"] = JSON.parse(yesterday_data["meta"]);
-        let prev_data = old_data[0];
-        prev_data["meta"] = JSON.parse(prev_data["meta"]);
+        var support_count = 0;
+        var support_price = 0;
+        old_data.forEach((datum) => {
+          datum["meta"] = JSON.parse(datum["meta"]);
+          if (datum.meta.insight.support_price) {
+            support_price += datum.meta.insight.support_price;
+            support_count++;
+          }
+        });
+        support_price = support_price / support_count;
 
-        await collectFunc({ stock_code: code }, 20);
+        await collectFunc({ stock_code: code }, 1);
 
         let data = await stockData
           .getTable()
@@ -439,49 +457,32 @@ module.exports = {
         let curr_data = data[data.length - 1];
         curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
-        var support_price = curr_data.close;
-        var buy_price = yesterday_data.close;
-
-        if (curr_data.meta.insight.support_price) {
-          buy_price = (buy_price + curr_data.meta.insight.support_price) / 2;
-          support_price =
-            (support_price + curr_data.meta.insight.support_price) / 2;
-        }
-
-        if (curr_data.meta.insight.future_resist_price) {
-          buy_price =
-            (buy_price + curr_data.meta.insight.future_resist_price) / 2;
-        }
-
-        buy_price = Math.abs(convertToHoga(buy_price));
         support_price = Math.abs(convertToHoga(support_price));
 
         ret = {
           code: curr_data.code,
           close: curr_data.close,
           low: curr_data.low,
-          buy_price: buy_price,
+          buy_price: support_price,
           init_buy:
-            curr_data.meta.insight.support >=
-              yesterday_data.meta.insight.resist &&
-            ((yesterday_data.low <= buy_price &&
-              buy_price < curr_data.close &&
-              buy_price * 1.03 > curr_data.close) ||
-              (yesterday_data.low <= support_price &&
-                support_price < curr_data.close &&
-                support_price * 1.03 > curr_data.close)) &&
-            curr_data.volume > 0
+            curr_data.close - curr_data.low >
+              curr_data.high - curr_data.close &&
+            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
+            suggest_data.close >= curr_data.close &&
+            curr_data.volume > yesterday_data.volume
               ? true
               : false,
           buy:
-            ((prev_data.close <= buy_price && buy_price < curr_data.close) ||
-              (prev_data.close <= support_price &&
-                support_price < curr_data.close)) &&
+            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
+            curr_data.low <= support_price &&
+            support_price < curr_data.close &&
+            suggest_data.close >= curr_data.close &&
             curr_data.volume > 0
               ? true
               : false,
         };
       } catch (error) {
+        console.log(error);
         ret = {
           code: code,
           close: 0,
@@ -513,14 +514,7 @@ module.exports = {
         origin_data.filter((d) => d.result).length,
         _.mean(good_list.map((d) => d.result))
       );
-      res.status(200).send({
-        good: good_list.map((d) => {
-          return d.code;
-        }),
-        bad: bad_list.map((d) => {
-          return d.code;
-        }),
-      });
+      res.status(200).send({});
     },
     favorite: async (req, res, next) => {
       const stockFavorite = new connector.types.StockFavorite(
@@ -534,7 +528,7 @@ module.exports = {
   },
   post: {
     check: async (req, res, next) => {
-      var ret = false;
+      var ret = "대기";
       try {
         let result = {
           curr_trend: 0,
@@ -545,6 +539,7 @@ module.exports = {
         };
 
         analysis.segmentation(req.body.data, result, "close");
+
         let insight = analysis.cross_point(
           result,
           req.body.data[req.body.data.length - 1],
@@ -552,9 +547,15 @@ module.exports = {
         );
 
         if (!isNaN(insight.future_support_price)) {
-          ret = true;
+          ret = "매도";
+        } else {
+          if (!isNaN(insight.support_price) && isNaN(insight.resist_price)) {
+            ret = "매수";
+          }
         }
-      } catch (error) {}
+      } catch (error) {
+        console.log(error);
+      }
 
       res.status(200).send(ret);
     },
