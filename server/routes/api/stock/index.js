@@ -189,7 +189,7 @@ const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 6;
+  const days = 11;
 
   collectFunc(code, days);
 };
@@ -381,7 +381,7 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(5);
+        .limit(10);
 
       let origin_data = await stockList
         .getTable()
@@ -453,7 +453,7 @@ module.exports = {
         });
         support_price = support_price / support_count;
 
-        await collectFunc({ stock_code: code }, 6);
+        await collectFunc({ stock_code: code }, 11);
 
         let data = await stockData
           .getTable()
@@ -476,7 +476,7 @@ module.exports = {
               curr_data.high - curr_data.close &&
             curr_data.meta.insight.support > curr_data.meta.insight.resist &&
             suggest_data.close >= curr_data.close &&
-            curr_data.volume > yesterday_data.volume
+            curr_data.volume > 0
               ? true
               : false,
           buy:
@@ -560,6 +560,7 @@ module.exports = {
             ret = "매수";
           }
         }
+        console.log(ret);
       } catch (error) {
         console.log(error);
       }
