@@ -80,6 +80,7 @@ const collectFunc = async (code, days) => {
           row["code"] = item.stock_code;
           try {
             let result = {
+              volume:row.volume,
               curr_trend: 0,
               init_trend: 0,
               segmentation: [],
@@ -126,7 +127,8 @@ const collectFunc = async (code, days) => {
                   (prev_result.meta.insight.resist_price &&
                     !insight.resist_price)) &&
                 !insight.future_support_price &&
-                insight.support > prev_result.meta.insight.resist
+                insight.support > prev_result.meta.insight.resist &&
+                prev_result.volume < result.volume
               ) {
                 row["marker"] = "매수";
                 let futures = all_data.slice(i + 1, i + 61);
@@ -267,7 +269,7 @@ if (cluster.isMaster) {
     false,
     "Asia/Seoul"
   );
-  // collect_job.start();
+  collect_job.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
