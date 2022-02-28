@@ -126,9 +126,7 @@ const collectFunc = async (code, days) => {
                   insight.support_price) ||
                   (prev_result.meta.insight.resist_price &&
                     !insight.resist_price)) &&
-                !insight.future_support_price &&
-                insight.support > prev_result.meta.insight.resist &&
-                prev_result.volume < result.volume
+                insight.support >= prev_result.meta.insight.resist
               ) {
                 row["marker"] = "매수";
                 let futures = all_data.slice(i + 1, i + 61);
@@ -269,7 +267,7 @@ if (cluster.isMaster) {
     false,
     "Asia/Seoul"
   );
-  collect_job.start();
+  // collect_job.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
@@ -396,7 +394,7 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return d.result < 103;
+          return d.result < 105;
         })
         .forEach((d) => {
           if (d.volume > 0) {
@@ -443,6 +441,8 @@ module.exports = {
           .where("date", "<=", req_date)
           .andWhere("date", ">=", suggest_data.date)
           .orderBy("date", "desc");
+        
+        let prev_data = old_data[0];
 
         var support_count = 0;
         var support_price = 0;
@@ -474,16 +474,16 @@ module.exports = {
           low: curr_data.low,
           buy_price: support_price,
           init_buy:
-            curr_data.close - curr_data.low >
-              curr_data.high - curr_data.close &&
-            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            prev_data.close <= support_price &&
+            support_price < curr_data.close &&
             suggest_data.close >= curr_data.close &&
             curr_data.volume > 0
               ? true
               : false,
           buy:
-            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
-            curr_data.low <= support_price &&
+            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            prev_data.close <= support_price &&
             support_price < curr_data.close &&
             suggest_data.close >= curr_data.close &&
             curr_data.volume > 0
