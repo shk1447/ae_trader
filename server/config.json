@@ -1,7 +1,7 @@
 {
   "root_path": "./",
   "host": "0.0.0.0",
-  "port": 8081,
+  "port": 8080,
   "session_time": 240,
   "database": {
     "type": "sqlite3",
@@ -22,7 +22,7 @@
     }
   },
   "kakao_auth" :{
-    "id":"",
+    "id":"aaa",
     "domain":"http://localhost:8080"
   },
   "google_auth": {

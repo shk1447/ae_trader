@@ -190,6 +190,11 @@ const collect_job_func = async () => {
   // await data.truncate();
   const code = {};
   const days = 11;
+  const stockData = new connector.types.StockData(connector.database);
+  var date = moment().format('YYYY-MM-DD 00:00:00')
+  const today_unix = moment(date).unix() * 1000;
+  
+  await stockData.getTable().where({date:today_unix}).del()
 
   collectFunc(code, days);
 };
@@ -267,7 +272,7 @@ if (cluster.isMaster) {
     false,
     "Asia/Seoul"
   );
-  // collect_job.start();
+  collect_job.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
@@ -441,8 +446,6 @@ module.exports = {
           .where("date", "<=", req_date)
           .andWhere("date", ">=", suggest_data.date)
           .orderBy("date", "desc");
-        
-        let prev_data = old_data[0];
 
         var support_count = 0;
         var support_price = 0;
@@ -466,6 +469,7 @@ module.exports = {
         let curr_data = data[data.length - 1];
         curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
+        init_support_price = Math.abs(convertToHoga((support_price + curr_data.close)/2));
         support_price = Math.abs(convertToHoga(support_price));
 
         ret = {
@@ -475,15 +479,17 @@ module.exports = {
           buy_price: support_price,
           init_buy:
             curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-            prev_data.close <= support_price &&
-            support_price < curr_data.close &&
-            suggest_data.close >= curr_data.close &&
+            ((curr_data.low <= init_support_price &&
+            init_support_price < curr_data.close) ||
+            (curr_data.low <= support_price &&
+              support_price < curr_data.close)) &&
+            suggest_data.close * 1.03 > curr_data.close &&
             curr_data.volume > 0
               ? true
               : false,
           buy:
             curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-            prev_data.close <= support_price &&
+            curr_data.low <= support_price &&
             support_price < curr_data.close &&
             suggest_data.close >= curr_data.close &&
             curr_data.volume > 0
@@ -558,7 +564,7 @@ module.exports = {
         if (!isNaN(insight.future_support_price)) {
           ret = "매도";
         } else {
-          if (!isNaN(insight.support_price) && isNaN(insight.resist_price)) {
+          if (!isNaN(insight.support_price) && insight.support >= insight.resist) {
             ret = "매수";
           }
         }
