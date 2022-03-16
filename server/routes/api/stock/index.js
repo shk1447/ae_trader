@@ -266,7 +266,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8,12,15 * * 1-5",
+    "55 8,12,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -399,7 +399,7 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return d.result < 105;
+          return d.result < 103;
         })
         .forEach((d) => {
           if (d.volume > 0) {
@@ -483,7 +483,7 @@ module.exports = {
             init_support_price < curr_data.close) ||
             (curr_data.low <= support_price &&
               support_price < curr_data.close)) &&
-            suggest_data.close * 1.03 > curr_data.close &&
+            suggest_data.close * 1.01 > curr_data.close &&
             curr_data.volume > 0
               ? true
               : false,
@@ -561,10 +561,10 @@ module.exports = {
           "close"
         );
 
-        if (!isNaN(insight.future_support_price)) {
+        if (!isNaN(insight.future_support_price) && isNaN(insight.future_resist_price)) {
           ret = "매도";
         } else {
-          if (!isNaN(insight.support_price) && insight.support >= insight.resist) {
+          if (!isNaN(insight.support_price) && isNaN(insight.resist_price) && insight.support >= insight.resist) {
             ret = "매수";
           }
         }
