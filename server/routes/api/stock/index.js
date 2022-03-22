@@ -399,7 +399,7 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return d.result < 103;
+          return Math.round(d.result) <= 103;
         })
         .forEach((d) => {
           if (d.volume > 0) {
