@@ -189,7 +189,7 @@ const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 11;
+  const days = 21;
   const stockData = new connector.types.StockData(connector.database);
   var date = moment().format('YYYY-MM-DD 00:00:00')
   const today_unix = moment(date).unix() * 1000;
@@ -386,20 +386,19 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(10);
+        .limit(20);
 
       let origin_data = await stockList
-        .getTable()
-        .where("date", "<=", dates[0].date)
-        .andWhere("date", ">=", dates[dates.length - 1].date)
-        .groupBy("code")
-        .orderBy("date", "desc")
-        .limit(99);
+        .getTable().from(function() {
+          this.from(stockList.table_name).where("date", "<=", dates[0].date)
+          .andWhere("date", ">=", dates[dates.length - 1].date)
+          .orderBy("date", "desc")
+        }).groupBy('code');
 
       var ret = {};
       origin_data
         .filter((d) => {
-          return Math.round(d.result) <= 103;
+          return Math.round(d.result) < 103;
         })
         .forEach((d) => {
           if (d.volume > 0) {
@@ -458,7 +457,7 @@ module.exports = {
         });
         support_price = support_price / support_count;
 
-        await collectFunc({ stock_code: code }, 11);
+        await collectFunc({ stock_code: code }, 21);
 
         let data = await stockData
           .getTable()
