@@ -565,9 +565,13 @@ module.exports = {
         } else {
           if (!isNaN(insight.support_price) && isNaN(insight.resist_price) && insight.support >= insight.resist) {
             ret = "매수";
+          } else {
+            if(isNaN(insight.future_support_price) && insight.support > insight.resist) {
+              console.log('반만 매수')
+            }
           }
         }
-        console.log(ret);
+        console.log(req.body.code, ' : ', ret);
       } catch (error) {
         console.log(error);
       }
