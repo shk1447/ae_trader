@@ -266,7 +266,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "55 8,12,15 * * 1-5",
+    "50 8,12,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -567,11 +567,11 @@ module.exports = {
             ret = "매수";
           } else {
             if(isNaN(insight.future_support_price) && insight.support > insight.resist) {
-              console.log('반만 매수')
+              console.log(req.body.code, ' : 반만 매수')
             }
           }
         }
-        console.log(req.body.code, ' : ', ret);
+        console.log(req.body.code, ' : ', ret, isNaN(insight.future_resist_price));
       } catch (error) {
         console.log(error);
       }
