@@ -266,7 +266,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 8,12,15 * * 1-5",
+    "45 8,12,15 * * 1-5",
     collect_job_func,
     null,
     false,
