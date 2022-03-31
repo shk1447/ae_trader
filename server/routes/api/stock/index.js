@@ -80,7 +80,7 @@ const collectFunc = async (code, days) => {
           row["code"] = item.stock_code;
           try {
             let result = {
-              volume:row.volume,
+              volume: row.volume,
               curr_trend: 0,
               init_trend: 0,
               segmentation: [],
@@ -191,10 +191,10 @@ const collect_job_func = async () => {
   const code = {};
   const days = 21;
   const stockData = new connector.types.StockData(connector.database);
-  var date = moment().format('YYYY-MM-DD 00:00:00')
+  var date = moment().format("YYYY-MM-DD 00:00:00");
   const today_unix = moment(date).unix() * 1000;
-  
-  await stockData.getTable().where({date:today_unix}).del()
+
+  await stockData.getTable().where({ date: today_unix }).del();
 
   collectFunc(code, days);
 };
@@ -389,11 +389,14 @@ module.exports = {
         .limit(20);
 
       let origin_data = await stockList
-        .getTable().from(function() {
-          this.from(stockList.table_name).where("date", "<=", dates[0].date)
-          .andWhere("date", ">=", dates[dates.length - 1].date)
-          .orderBy("date", "desc")
-        }).groupBy('code');
+        .getTable()
+        .from(function () {
+          this.from(stockList.table_name)
+            .where("date", "<=", dates[0].date)
+            .andWhere("date", ">=", dates[dates.length - 1].date)
+            .orderBy("date", "desc");
+        })
+        .groupBy("code");
 
       var ret = {};
       origin_data
@@ -468,7 +471,9 @@ module.exports = {
         let curr_data = data[data.length - 1];
         curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
-        init_support_price = Math.abs(convertToHoga((support_price + curr_data.close)/2));
+        init_support_price = Math.abs(
+          convertToHoga((support_price + curr_data.close) / 2)
+        );
         support_price = Math.abs(convertToHoga(support_price));
 
         ret = {
@@ -479,9 +484,9 @@ module.exports = {
           init_buy:
             curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
             ((curr_data.low <= init_support_price &&
-            init_support_price < curr_data.close) ||
-            (curr_data.low <= support_price &&
-              support_price < curr_data.close)) &&
+              init_support_price < curr_data.close) ||
+              (curr_data.low <= support_price &&
+                support_price < curr_data.close)) &&
             suggest_data.close * 1.01 > curr_data.close &&
             curr_data.volume > 0
               ? true
@@ -560,18 +565,33 @@ module.exports = {
           "close"
         );
 
-        if (!isNaN(insight.future_support_price) && isNaN(insight.future_resist_price)) {
+        if (
+          !isNaN(insight.future_support_price) &&
+          isNaN(insight.future_resist_price)
+        ) {
           ret = "매도";
         } else {
-          if (!isNaN(insight.support_price) && isNaN(insight.resist_price) && insight.support >= insight.resist) {
+          if (
+            !isNaN(insight.support_price) &&
+            isNaN(insight.resist_price) &&
+            insight.support >= insight.resist
+          ) {
             ret = "매수";
           } else {
-            if(isNaN(insight.future_support_price) && insight.support > insight.resist) {
-              console.log(req.body.code, ' : 반만 매수')
+            if (
+              isNaN(insight.future_support_price) &&
+              insight.support > insight.resist
+            ) {
+              console.log(req.body.code, " : 반만 매수");
             }
           }
         }
-        console.log(req.body.code, ' : ', ret, isNaN(insight.future_resist_price));
+        console.log(
+          req.body.code,
+          " : ",
+          ret,
+          isNaN(insight.future_resist_price)
+        );
       } catch (error) {
         console.log(error);
       }
