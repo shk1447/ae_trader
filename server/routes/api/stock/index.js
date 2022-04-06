@@ -427,6 +427,7 @@ module.exports = {
       // 최종 매도에 대한 결정 및 가격 제공 ( 테스트 필요함. )
       let ret;
       const code = req.query.code;
+      const power = parseFloat(req.query.power);
       const req_date = req.query.date
         ? new Date(req.query.date).getTime() - 32400000
         : new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
@@ -451,14 +452,19 @@ module.exports = {
 
         var support_count = 0;
         var support_price = 0;
+        var avg_volume = 0;
+        var avg_count = 0;
         old_data.forEach((datum) => {
           datum["meta"] = JSON.parse(datum["meta"]);
           if (datum.meta.insight.support_price) {
             support_price += datum.meta.insight.support_price;
             support_count++;
           }
+          avg_volume += datum['volume']
+          avg_count++;
         });
         support_price = support_price / support_count;
+        avg_volume = avg_volume / avg_count;
 
         await collectFunc({ stock_code: code }, 21);
 
@@ -466,21 +472,23 @@ module.exports = {
           .getTable()
           .where("date", "<=", req_date)
           .orderBy("date", "desc")
-          .limit(1);
+          .limit(2);
 
         let curr_data = data[data.length - 1];
         curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
-        init_support_price = Math.abs(
-          convertToHoga((support_price + curr_data.close) / 2)
-        );
-        support_price = Math.abs(convertToHoga(support_price));
+        let prev_data = data[data.length - 2];
+        prev_data["meta"] = JSON.parse(prev_data["meta"]);
 
+        init_support_price = Math.abs(convertToHoga((support_price + curr_data.close)/2));
+        support_price = Math.abs(convertToHoga(support_price));
+        
         ret = {
           code: curr_data.code,
           close: curr_data.close,
           low: curr_data.low,
           buy_price: support_price,
+          volume_buy: prev_data.volume > avg_volume * 2 && power >= 100 && curr_data.meta.insight.support >= curr_data.meta.insight.resist,
           init_buy:
             curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
             ((curr_data.low <= init_support_price &&
@@ -492,7 +500,7 @@ module.exports = {
               ? true
               : false,
           buy:
-            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
             curr_data.low <= support_price &&
             support_price < curr_data.close &&
             suggest_data.close >= curr_data.close &&
@@ -578,11 +586,9 @@ module.exports = {
           ) {
             ret = "매수";
           } else {
-            if (
-              isNaN(insight.future_support_price) &&
-              insight.support > insight.resist
-            ) {
-              console.log(req.body.code, " : 반만 매수");
+            if(isNaN(insight.future_support_price) && insight.support > insight.resist) {
+              ret = "매수";
+              console.log(req.body.code, ' : 반만 매수')
             }
           }
         }
