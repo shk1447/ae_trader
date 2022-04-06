@@ -500,7 +500,8 @@ module.exports = {
               ? true
               : false,
           buy:
-            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support > 0 &&
             curr_data.low <= support_price &&
             support_price < curr_data.close &&
             suggest_data.close >= curr_data.close &&
