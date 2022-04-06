@@ -488,9 +488,9 @@ module.exports = {
           close: curr_data.close,
           low: curr_data.low,
           buy_price: support_price,
-          volume_buy: prev_data.volume > avg_volume * 2 && power >= 100 && curr_data.meta.insight.support >= curr_data.meta.insight.resist,
+          volume_buy: prev_data.volume > avg_volume * 2 && power >= 100 && curr_data.meta.insight.support >= curr_data.meta.insight.resist && curr_data.meta.insight.support > 0,
           init_buy:
-            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support >= curr_data.meta.insight.resist && curr_data.meta.insight.support > 0 &&
             ((curr_data.low <= init_support_price &&
               init_support_price < curr_data.close) ||
               (curr_data.low <= support_price &&
