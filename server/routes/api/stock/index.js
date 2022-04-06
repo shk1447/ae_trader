@@ -460,7 +460,7 @@ module.exports = {
             support_price += datum.meta.insight.support_price;
             support_count++;
           }
-          avg_volume += datum['volume']
+          avg_volume += datum["volume"];
           avg_count++;
         });
         support_price = support_price / support_count;
@@ -480,17 +480,24 @@ module.exports = {
         let prev_data = data[data.length - 2];
         prev_data["meta"] = JSON.parse(prev_data["meta"]);
 
-        init_support_price = Math.abs(convertToHoga((support_price + curr_data.close)/2));
+        init_support_price = Math.abs(
+          convertToHoga((support_price + curr_data.close) / 2)
+        );
         support_price = Math.abs(convertToHoga(support_price));
-        
+
         ret = {
           code: curr_data.code,
           close: curr_data.close,
           low: curr_data.low,
           buy_price: support_price,
-          volume_buy: prev_data.volume > avg_volume * 2 && power >= 100 && curr_data.meta.insight.support >= curr_data.meta.insight.resist && curr_data.meta.insight.support > 0,
+          volume_buy:
+            prev_data.volume > avg_volume * 2 &&
+            power >= 100 &&
+            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support > 0,
           init_buy:
-            curr_data.meta.insight.support >= curr_data.meta.insight.resist && curr_data.meta.insight.support > 0 &&
+            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support > 0 &&
             ((curr_data.low <= init_support_price &&
               init_support_price < curr_data.close) ||
               (curr_data.low <= support_price &&
@@ -587,9 +594,12 @@ module.exports = {
           ) {
             ret = "매수";
           } else {
-            if(isNaN(insight.future_support_price) && insight.support > insight.resist) {
+            if (
+              isNaN(insight.future_support_price) &&
+              insight.support > insight.resist
+            ) {
               ret = "매수";
-              console.log(req.body.code, ' : 반만 매수')
+              console.log(req.body.code, " : 반만 매수");
             }
           }
         }
