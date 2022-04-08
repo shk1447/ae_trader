@@ -126,7 +126,7 @@ module.exports = (async (config) => {
 
           server
             .listen(port, host, function () {
-              vases.logger.info(
+              console.log(
                 me.name + " starting worker thread #" + cluster.worker.id
               );
             })

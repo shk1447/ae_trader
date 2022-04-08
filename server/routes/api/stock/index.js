@@ -484,17 +484,18 @@ module.exports = {
           convertToHoga((support_price + curr_data.close) / 2)
         );
         support_price = Math.abs(convertToHoga(support_price));
-
+        var volume_buy = ((prev_data.volume / avg_volume) * power) / 100;
+        if (volume_buy > 9) {
+          vases.logger.info(
+            "[overflow volume] : " + code + "(" + volume_buy + ")"
+          );
+        }
         ret = {
           code: curr_data.code,
           close: curr_data.close,
           low: curr_data.low,
           buy_price: support_price,
-          volume_buy:
-            prev_data.volume > avg_volume * 2 &&
-            power >= 100 &&
-            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-            curr_data.meta.insight.support > 0,
+          volume_buy: volume_buy > 9 ? 9 : volume_buy,
           init_buy:
             curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
             curr_data.meta.insight.support > 0 &&
