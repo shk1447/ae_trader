@@ -484,7 +484,8 @@ module.exports = {
           convertToHoga((support_price + curr_data.close) / 2)
         );
         support_price = Math.abs(convertToHoga(support_price));
-        var volume_buy = ((prev_data.volume / avg_volume) * power) / 100;
+        var volume_buy =
+          Math.ceil(((prev_data.volume / avg_volume) * power) / 10) / 10;
         if (volume_buy > 9) {
           vases.logger.info(
             "[overflow volume] : " + code + "(" + volume_buy + ")"
@@ -594,22 +595,10 @@ module.exports = {
             insight.support >= insight.resist
           ) {
             ret = "매수";
-          } else {
-            if (
-              isNaN(insight.future_support_price) &&
-              insight.support > insight.resist
-            ) {
-              ret = "매수";
-              console.log(req.body.code, " : 반만 매수");
-            }
           }
         }
-        console.log(
-          req.body.code,
-          " : ",
-          ret,
-          isNaN(insight.future_resist_price)
-        );
+
+        vases.logger.info("[trading] : " + code + "(" + ret + ")");
       } catch (error) {
         console.log(error);
       }
