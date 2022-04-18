@@ -486,7 +486,7 @@ module.exports = {
         support_price = Math.abs(convertToHoga(support_price));
         var volume_buy =
           Math.ceil(((prev_data.volume / avg_volume) * power) / 10) / 10;
-        if (volume_buy > 9) {
+        if (volume_buy > 5) {
           vases.logger.info(
             "[overflow volume] : " + code + "(" + volume_buy + ")"
           );
@@ -598,7 +598,16 @@ module.exports = {
           }
         }
 
-        vases.logger.info("[trading] : " + code + "(" + ret + ")");
+        if (ret.includes("매수")) {
+          vases.logger.info(
+            "[trading] : " +
+              req.body.code +
+              "(" +
+              ret +
+              ") - " +
+              req.body.volume_buy
+          );
+        }
       } catch (error) {
         console.log(error);
       }
