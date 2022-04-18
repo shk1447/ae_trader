@@ -496,7 +496,7 @@ module.exports = {
           close: curr_data.close,
           low: curr_data.low,
           buy_price: support_price,
-          volume_buy: volume_buy > 9 ? 9 : volume_buy,
+          volume_buy: volume_buy > 5 ? 5 : volume_buy,
           init_buy:
             curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
             curr_data.meta.insight.support > 0 &&
