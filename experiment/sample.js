@@ -1,31 +1,31 @@
-const dfd = require("danfojs-node")
-const fs = require('fs');
-const path = require('path');
-const fsPath = require('fs-path');
-const moment = require('moment');
-var { Chart } = require('echarts-ssr');
-var clustering = require('density-clustering')
+const dfd = require("danfojs-node");
+const fs = require("fs");
+const path = require("path");
+const fsPath = require("fs-path");
+const moment = require("moment");
+var { Chart } = require("echarts-ssr");
+var clustering = require("density-clustering");
 
-const SMA = require('technicalindicators').SMA
+const SMA = require("technicalindicators").SMA;
 
-const Database = require('./utils/Database');
+const Database = require("./utils/Database");
 stock = {
-  db: null
-}
+  db: null,
+};
 var train_data = [];
 var valid_data = [];
 var test_data = [];
 
 function kmeans_clustering(dataset, cnt, orgs, success_list) {
-  var isPerfect = false
+  var isPerfect = false;
   var ret;
   while (!isPerfect) {
     var result_list = [];
     var kmeans = new clustering.KMEANS();
-    var clusters = kmeans.run(dataset, cnt)
+    var clusters = kmeans.run(dataset, cnt);
 
     // var dbscan = new clustering.DBSCAN();
-    // var clusters = dbscan.run(dataset, 15, 5)
+    // var clusters = dbscan.run(dataset, 15, 5);
     // console.log(clusters)
 
     for (var i = 0; i < clusters.length; i++) {
@@ -38,38 +38,37 @@ function kmeans_clustering(dataset, cnt, orgs, success_list) {
         var idx = cluster[j];
         var item = orgs[idx];
         if (success_list.includes(item.code + item.date)) {
-          success++
+          success++;
         } else {
-          fail++
+          fail++;
         }
-        total++
-        item['dataset'] = dataset[idx];
+        total++;
+        item["dataset"] = dataset[idx];
         list.push(item);
       }
-      var percent = success / total * 100;
+      var percent = (success / total) * 100;
       if (percent > 90) {
-
       }
-      //console.log(i + '번째 클러스터 : ', percent + '% / ', total)
+      console.log(i + "번째 클러스터 : ", percent + "% / ", total);
       if (percent == 100) {
-        result_list.push(list)
+        result_list.push(list);
       }
     }
     if (result_list.length > 0) {
-      var total = 0
+      var total = 0;
       var max = 0;
       var max_idx;
       result_list.forEach((d, idx) => {
-        total += d.length
+        total += d.length;
         if (max < d.length) {
           max = d.length;
-          max_idx = idx
+          max_idx = idx;
         }
-      })
+      });
       if (max > 10) {
         // [max_idx]
         ret = result_list[max_idx];
-        isPerfect = true
+        isPerfect = true;
       }
       console.log(max, total, result_list.length);
     }
@@ -78,45 +77,50 @@ function kmeans_clustering(dataset, cnt, orgs, success_list) {
 }
 
 Database({
-  "type": "sqlite3",
-  "sqlite3": {
-    "filename": "../server/trader.db"
-  }
+  type: "sqlite3",
+  sqlite3: {
+    filename: "../server/trader.db",
+  },
 }).then((db) => {
-  db.knex('stock_data').then((rows) => {
+  db.knex("stock_data").then((rows) => {
     var items = [];
     var success = [];
     var dataset = [];
 
     rows.forEach((d) => {
-
       let meta = JSON.parse(d.meta);
-
-
-      let scaler = new dfd.StandardScaler()
-      let df = new dfd.DataFrame(meta.train)
-      scaler.fit(df)
+      let scaler = new dfd.StandardScaler();
+      let df = new dfd.DataFrame([
+        meta.insight.resist_price ? meta.insight.resist_price : d.close,
+        meta.insight.support_price ? meta.insight.support_price : d.close,
+        meta.insight.future_resist_price
+          ? meta.insight.future_resist_price
+          : d.close,
+        meta.insight.future_support_price
+          ? meta.insight.future_support_price
+          : d.close,
+      ]);
+      scaler.fit(df);
       let df_enc = scaler.transform(df);
 
-
       if (d.result) {
-        dataset.push(df_enc.values)
-        if (d.result > 105) {
+        dataset.push(df_enc.values);
+        if (d.result > 103) {
           success.push(d.code + d.date);
         } else {
           valid_data.push({
             data: df_enc.values,
-            target: 0
-          })
+            target: 0,
+          });
         }
-        items.push(d)
+        items.push(d);
       } else {
         test_data.push({
           data: df_enc.values,
           result: d.result,
           code: d.code,
-          date: d.date
-        })
+          date: d.date,
+        });
       }
 
       // let train = meta.train.filter((d) => d);
@@ -131,27 +135,38 @@ Database({
       //   }
       //   items.push(d)
       // }
-    })
-    console.log(success.length, valid_data.length, dataset.length)
-    var ret = kmeans_clustering(dataset, 5, items, success);
+    });
+    console.log(success.length, valid_data.length, dataset.length);
+    var ret = kmeans_clustering(dataset, 1000, items, success);
     ret.forEach((d, i) => {
       var _train_data = [];
-      var test_result = 0
+      var test_result = 0;
 
       test_result += d.result;
       train_data.push({
+        code: d.code,
         data: d.dataset,
-        target: 1
-      })
+        target: 1,
+      });
       valid_data.push({
+        code: d.code,
         data: d.dataset,
-        target: 1
-      })
-
-    })
-    fsPath.writeFileSync(path.resolve(__dirname, `./train.json`), JSON.stringify(train_data))
-    fsPath.writeFileSync(path.resolve(__dirname, './valid.json'), JSON.stringify(valid_data))
-    fsPath.writeFileSync(path.resolve(__dirname, './test.json'), JSON.stringify(test_data))
+        target: 1,
+      });
+    });
+    console.log("aaaaaa");
+    fsPath.writeFileSync(
+      path.resolve(__dirname, `./train.json`),
+      JSON.stringify(train_data)
+    );
+    fsPath.writeFileSync(
+      path.resolve(__dirname, "./valid.json"),
+      JSON.stringify(valid_data)
+    );
+    fsPath.writeFileSync(
+      path.resolve(__dirname, "./test.json"),
+      JSON.stringify(test_data)
+    );
     // console.log(ret);
-  })
-})
+  });
+});
