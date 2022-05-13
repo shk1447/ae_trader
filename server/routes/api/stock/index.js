@@ -431,6 +431,7 @@ module.exports = {
       const req_date = req.query.date
         ? new Date(req.query.date).getTime() - 32400000
         : new Date(moment().format("YYYY-MM-DD")).getTime() - 32400000;
+
       try {
         const stockData = new connector.types.StockData(connector.database);
         let _suggest_data = await stockData
@@ -446,7 +447,6 @@ module.exports = {
 
         let old_data = await stockData
           .getTable()
-          .where("date", "<=", req_date)
           .andWhere("date", ">=", suggest_data.date)
           .orderBy("date", "desc");
 
@@ -468,16 +468,12 @@ module.exports = {
 
         await collectFunc({ stock_code: code }, 21);
 
-        let data = await stockData
-          .getTable()
-          .where("date", "<=", req_date)
-          .orderBy("date", "desc")
-          .limit(2);
+        let data = await stockData.getTable().orderBy("date", "desc").limit(2);
 
-        let curr_data = data[data.length - 1];
+        let curr_data = data[data.length - 2];
         curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
-        let prev_data = data[data.length - 2];
+        let prev_data = data[data.length - 1];
         prev_data["meta"] = JSON.parse(prev_data["meta"]);
 
         init_support_price = Math.abs(
@@ -498,22 +494,26 @@ module.exports = {
           buy_price: support_price,
           volume_buy: volume_buy > 5 ? 5 : volume_buy,
           init_buy:
-            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
-            curr_data.meta.insight.support > 0 &&
-            ((curr_data.low <= init_support_price &&
-              init_support_price < curr_data.close) ||
-              (curr_data.low <= support_price &&
-                support_price < curr_data.close)) &&
-            suggest_data.close * 1.01 > curr_data.close &&
-            curr_data.volume > 0
-              ? true
-              : false,
-          buy:
-            curr_data.meta.insight.support >= curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
             curr_data.meta.insight.support > 0 &&
             curr_data.low <= support_price &&
             support_price < curr_data.close &&
             suggest_data.close >= curr_data.close &&
+            curr_data.open < curr_data.close &&
+            curr_data.close - curr_data.open >
+              curr_data.high - curr_data.close &&
+            curr_data.volume > 0
+              ? true
+              : false,
+          buy:
+            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
+            curr_data.meta.insight.support > 0 &&
+            curr_data.low <= support_price &&
+            support_price < curr_data.close &&
+            suggest_data.close >= curr_data.close &&
+            curr_data.open < curr_data.close &&
+            curr_data.close - curr_data.open >
+              curr_data.high - curr_data.close &&
             curr_data.volume > 0
               ? true
               : false,
@@ -588,14 +588,12 @@ module.exports = {
           isNaN(insight.future_resist_price)
         ) {
           ret = "매도";
-        } else {
-          if (
-            !isNaN(insight.support_price) &&
-            isNaN(insight.resist_price) &&
-            insight.support >= insight.resist
-          ) {
-            ret = "매수";
-          }
+        } else if (
+          isNaN(insight.future_support_price) &&
+          !isNaN(insight.future_resist_price) &&
+          !isNaN(insight.support_price)
+        ) {
+          ret = "매수";
         }
 
         if (ret.includes("매수")) {
