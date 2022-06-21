@@ -31,9 +31,9 @@ let modelParams = {
   adamBeta1: 0.5,
 };
 
-let numSteps = 10000;
+let numSteps = 50000;
 let numEpochs = 1;
-let batchSize = 512;
+let batchSize = 256;
 
 let modelSavePath = path.resolve(__dirname, "./ae_model");
 
@@ -114,7 +114,7 @@ async function train_data(model) {
       bestMetric.tnr
     );
 
-    if (bestMetric.tnr > 0.92 && bestMetric.tpr > 0.92) {
+    if (bestMetric.tnr > 0.94 && bestMetric.tpr > 0.94) {
       console.log("early stopping");
       break;
     }

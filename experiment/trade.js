@@ -1,0 +1,128 @@
+const _ = require("lodash");
+const path = require("path");
+const fs = require("fs");
+const fsPath = require("fs-path");
+const moment = require("moment");
+const dfd = require("danfojs-node");
+const database = require("./utils/Database");
+const list = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
+);
+const oldDate = moment().add(-20, "days");
+
+database({
+  type: "better-sqlite3",
+  "better-sqlite3": {
+    filename: "../server/trader.db",
+  },
+}).then(async ({ knex }) => {
+  var test = {};
+  _.each(list, (v, k) => {
+    const date = moment(v.Time).format("YYYY-MM-DD");
+    test[v.Name + date] = { name: v.Name, rate: v.Rate, time: v.Time };
+  });
+  const orgs = Object.values(test);
+  var test2 = {};
+  _.each(orgs, (org) => {
+    test2[org.name] = org;
+  });
+  const data = await knex.raw(
+    `SELECT * FROM stock_list WHERE stock_name in (${orgs
+      .map((v) => `'${v.name}'`)
+      .toString()});`
+  );
+  console.log(test2);
+  data.forEach((item) => {
+    // console.log(test2[item.stock_name]);
+    console.log(item.stock_code);
+    test2[item.stock_name].code = item.stock_code;
+  });
+
+  const train_data = [];
+  for (var i = 0; i < orgs.length; i++) {
+    var item = orgs[i];
+    if (test2[item.name].code) {
+      let scaler = new dfd.StandardScaler();
+      const dd = await knex.raw(
+        `SELECT * FROM stock_data_${test2[item.name].code} WHERE date < '${
+          test2[item.name].time
+        }' ORDER BY date desc LIMIT 100`
+      );
+
+      let df = new dfd.DataFrame(
+        dd.map((k) => {
+          k.meta = JSON.parse(k.meta);
+
+          return (
+            (k.meta.insight.support - k.meta.insight.resist) *
+            k.meta.curr_trend *
+            k.meta.init_trend
+          );
+        })
+      );
+      scaler.fit(df);
+      let df_enc = scaler.transform(df);
+      if (dd.length == 100) {
+        train_data.push({
+          data: df_enc.values,
+          target: 1,
+        });
+      }
+    }
+  }
+
+  const check_arr = Object.values(test2).map((d) => d.code);
+
+  const aa = await knex.raw(
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 105 AND result > 100 AND date <= ${
+      oldDate.unix() * 1000
+    } ORDER BY date desc) GROUP BY code) WHERE code not in 
+    (${Object.values(test2)
+      .map((v) => `'${v.code}'`)
+      .toString()}) LIMIT ${train_data.length * 9}`
+  );
+  let valid_data = [];
+  for (var i = 0; i < aa.length; i++) {
+    var item = aa[i];
+    if (check_arr.includes(item.code)) continue;
+    let scaler = new dfd.StandardScaler();
+    let dd = await knex.raw(
+      `SELECT * FROM stock_data_${item.code} ORDER BY date desc LIMIT 100`
+    );
+
+    let df = new dfd.DataFrame(
+      dd.map((k) => {
+        k.meta = JSON.parse(k.meta);
+        return (
+          (k.meta.insight.support - k.meta.insight.resist) *
+          k.meta.curr_trend *
+          k.meta.init_trend
+        );
+      })
+    );
+    scaler.fit(df);
+    let df_enc = scaler.transform(df);
+    if (dd.length == 100) {
+      valid_data.push({
+        data: df_enc.values,
+        target: 0,
+      });
+    }
+  }
+  console.log(valid_data.length);
+
+  valid_data = valid_data.concat(train_data);
+
+  valid_data = _.shuffle(valid_data);
+
+  fsPath.writeFileSync(
+    path.resolve(__dirname, `./train2.json`),
+    JSON.stringify(train_data)
+  );
+
+  fsPath.writeFileSync(
+    path.resolve(__dirname, `./valid2.json`),
+    JSON.stringify(valid_data)
+  );
+  console.log(train_data.length);
+});

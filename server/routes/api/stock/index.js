@@ -496,8 +496,11 @@ module.exports = {
           init_buy:
             curr_data.meta.insight.support > curr_data.meta.insight.resist &&
             curr_data.meta.insight.support > 0 &&
-            curr_data.low <= support_price &&
-            support_price < curr_data.close &&
+            support_price <= prev_data.close &&
+            ((curr_data.low <= support_price &&
+              support_price <= curr_data.close) ||
+              (curr_data.low <= init_support_price &&
+                init_support_price <= curr_data.close)) &&
             suggest_data.close >= curr_data.close &&
             curr_data.open < curr_data.close &&
             curr_data.close - curr_data.open >
@@ -508,8 +511,11 @@ module.exports = {
           buy:
             curr_data.meta.insight.support > curr_data.meta.insight.resist &&
             curr_data.meta.insight.support > 0 &&
-            curr_data.low <= support_price &&
-            support_price < curr_data.close &&
+            support_price <= prev_data.close &&
+            ((curr_data.low <= support_price &&
+              support_price <= curr_data.close) ||
+              (curr_data.low <= init_support_price &&
+                init_support_price <= curr_data.close)) &&
             suggest_data.close >= curr_data.close &&
             curr_data.open < curr_data.close &&
             curr_data.close - curr_data.open >
@@ -594,6 +600,15 @@ module.exports = {
           !isNaN(insight.support_price)
         ) {
           ret = "매수";
+        } else {
+          if (
+            req.body.init &&
+            !isNaN(insight.support_price) &&
+            isNaN(insight.resist_price) &&
+            insight.support >= insight.resist
+          ) {
+            ret = "매수";
+          }
         }
 
         if (ret.includes("매수")) {
@@ -605,6 +620,16 @@ module.exports = {
               ") - " +
               req.body.volume_buy
           );
+        } else {
+          vases.logger.info(
+            "[trading] : " +
+              req.body.code +
+              "(" +
+              ret +
+              ") - " +
+              req.body.volume_buy
+          );
+          console.log(insight);
         }
       } catch (error) {
         console.log(error);
