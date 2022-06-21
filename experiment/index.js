@@ -33,7 +33,7 @@ let modelParams = {
 
 let numSteps = 50000;
 let numEpochs = 1;
-let batchSize = 256;
+let batchSize = 128;
 
 let modelSavePath = path.resolve(__dirname, "./ae_model");
 

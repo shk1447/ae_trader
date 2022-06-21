@@ -47,7 +47,10 @@ database({
       dd.map((k) => {
         k.meta = JSON.parse(k.meta);
         return (
-          (k.meta.insight.support - k.meta.insight.resist) *
+          (k.meta.insight.support -
+            k.meta.insight.resist +
+            k.meta.upward_point +
+            k.meta.downward_point) *
           k.meta.curr_trend *
           k.meta.init_trend
         );
@@ -88,12 +91,16 @@ database({
   });
 
   var aa = result_arr.filter(
-    (d) =>
-      d.best <= 0.9592024087905884 &&
-      !d.meta.future_support_price &&
-      d.meta.future_resist_price &&
-      d.meta.support_price
+    (d) => d.best <= 0.9639742970466614 && !d.meta.future_support_price
   );
+
+  /*
+    !d.meta.resist_price &&
+    d.meta.support_price
+
+    d.meta.future_resist_price &&
+
+  */
 
   console.log(
     aa

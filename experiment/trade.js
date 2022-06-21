@@ -8,7 +8,7 @@ const database = require("./utils/Database");
 const list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
-const oldDate = moment().add(-20, "days");
+const oldDate = moment().add(-100, "days");
 
 database({
   type: "better-sqlite3",
@@ -32,11 +32,18 @@ database({
       .toString()});`
   );
   console.log(test2);
-  data.forEach((item) => {
-    // console.log(test2[item.stock_name]);
-    console.log(item.stock_code);
+  for (var i = 0; i < data.length; i++) {
+    var item = data[i];
     test2[item.stock_name].code = item.stock_code;
-  });
+
+    const qqq = await knex.raw(
+      `SELECT * FROM stock_data_${item.stock_code} WHERE date <= ${
+        moment(test2[item.stock_name].time).unix() * 1000
+      } AND result is not null ORDER BY date desc LIMIT 1`
+    );
+    test2[item.stock_name].date = qqq[0].date;
+    // console.log(qqq[0].date);
+  }
 
   const train_data = [];
   for (var i = 0; i < orgs.length; i++) {
@@ -44,8 +51,8 @@ database({
     if (test2[item.name].code) {
       let scaler = new dfd.StandardScaler();
       const dd = await knex.raw(
-        `SELECT * FROM stock_data_${test2[item.name].code} WHERE date < '${
-          test2[item.name].time
+        `SELECT * FROM stock_data_${test2[item.name].code} WHERE date <= '${
+          test2[item.name].date
         }' ORDER BY date desc LIMIT 100`
       );
 
@@ -54,7 +61,10 @@ database({
           k.meta = JSON.parse(k.meta);
 
           return (
-            (k.meta.insight.support - k.meta.insight.resist) *
+            (k.meta.insight.support -
+              k.meta.insight.resist +
+              k.meta.upward_point +
+              k.meta.downward_point) *
             k.meta.curr_trend *
             k.meta.init_trend
           );
@@ -74,7 +84,7 @@ database({
   const check_arr = Object.values(test2).map((d) => d.code);
 
   const aa = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 105 AND result > 100 AND date <= ${
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 103 AND result > 100 AND date <= ${
       oldDate.unix() * 1000
     } ORDER BY date desc) GROUP BY code) WHERE code not in 
     (${Object.values(test2)
@@ -94,7 +104,10 @@ database({
       dd.map((k) => {
         k.meta = JSON.parse(k.meta);
         return (
-          (k.meta.insight.support - k.meta.insight.resist) *
+          (k.meta.insight.support -
+            k.meta.insight.resist +
+            k.meta.upward_point +
+            k.meta.downward_point) *
           k.meta.curr_trend *
           k.meta.init_trend
         );
@@ -117,7 +130,7 @@ database({
 
   fsPath.writeFileSync(
     path.resolve(__dirname, `./train2.json`),
-    JSON.stringify(train_data)
+    JSON.stringify(_.shuffle(train_data))
   );
 
   fsPath.writeFileSync(
