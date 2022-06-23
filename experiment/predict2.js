@@ -24,7 +24,7 @@ const database = require("./utils/Database");
 const list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
-const oldDate = moment().add(-10, "days");
+
 let best_modelPath = path.resolve(__dirname, "./ae_model/model.json");
 database({
   type: "better-sqlite3",
@@ -32,83 +32,102 @@ database({
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
+  const oldDate = moment().add(-384, "days");
   const list = await knex.raw(`SELECT * FROM stock_list`);
 
   const test_data = [];
   for (var i = 0; i < list.length; i++) {
     var item = list[i];
 
-    let scaler = new dfd.StandardScaler();
     let dd = await knex.raw(
-      `SELECT * FROM stock_data_${item.stock_code} ORDER BY date desc LIMIT 100`
+      `SELECT * FROM stock_data_${item.stock_code} WHERE date <= ${
+        oldDate.unix() * 1000
+      } ORDER BY date desc LIMIT 100`
     );
 
-    let df = new dfd.DataFrame(
-      dd.map((k) => {
-        k.meta = JSON.parse(k.meta);
-        return (
-          (k.meta.insight.support -
-            k.meta.insight.resist +
-            k.meta.upward_point +
-            k.meta.downward_point) *
-          k.meta.curr_trend *
-          k.meta.init_trend
-        );
-      })
-    );
-    scaler.fit(df);
-    let df_enc = scaler.transform(df);
-    if (dd.length == 100) {
-      test_data.push({
-        code: item.stock_code,
-        data: df_enc.values,
-        date: moment(item.date).format("YYYY-MM-DD"),
-        meta: dd[0].meta,
-      });
+    if (
+      dd.length > 0 &&
+      moment(dd[0].date).format("YYYY-MM-DD") == oldDate.format("YYYY-MM-DD")
+    ) {
+      let scaler = new dfd.StandardScaler();
+      let df = new dfd.DataFrame(
+        dd.map((k) => {
+          k.meta = JSON.parse(k.meta);
+          return (
+            (k.meta.insight.support -
+              k.meta.insight.resist +
+              k.meta.upward_point +
+              k.meta.downward_point) *
+            k.meta.curr_trend *
+            k.meta.init_trend
+          );
+        })
+      );
+      scaler.fit(df);
+      let df_enc = scaler.transform(df);
+      if (dd.length == 100) {
+        test_data.push({
+          code: item.stock_code,
+          data: df_enc.values,
+          date: moment(dd[0].date).format("YYYY-MM-DD"),
+          meta: dd[0].meta,
+        });
+      }
     }
   }
+  if (test_data.length > 0) {
+    let best_model = await tf.loadLayersModel("file://" + best_modelPath);
 
-  let best_model = await tf.loadLayersModel("file://" + best_modelPath);
+    const [best_mse] = tf.tidy(() => {
+      let dataTensor = tf.tensor2d(
+        test_data.map((item) => item.data),
+        [test_data.length, test_data[0].data.length]
+      );
+      let preds = best_model.predict(dataTensor, { batchSize: 1 });
+      return [tf.sub(preds, dataTensor).square().mean(1), preds];
+    });
 
-  const [best_mse] = tf.tidy(() => {
-    let dataTensor = tf.tensor2d(
-      test_data.map((item) => item.data),
-      [test_data.length, test_data[0].data.length]
+    let best_array = await best_mse.array();
+
+    let result_arr = test_data.map((d, idx) => {
+      return {
+        code: d.code,
+        best: best_array[idx],
+        date: d.date,
+        meta: d.meta.insight,
+        buy: d.meta.insight.support <= d.meta.insight.resist,
+        init_trend: d.meta.init_trend,
+        curr_trend: d.meta.curr_trend,
+      };
+    });
+
+    var aa = result_arr.filter(
+      (d) => d.best <= 0.9266412854194641
+      // &&
+      // d.buy &&
+      // !d.meta.future_support_price &&
+      // d.meta.future_resist_price &&
+      // !d.meta.resist_price
     );
-    let preds = best_model.predict(dataTensor, { batchSize: 1 });
-    return [tf.sub(preds, dataTensor).square().mean(1), preds];
-  });
 
-  let best_array = await best_mse.array();
+    /*
+      !d.meta.resist_price &&
+      d.meta.support_price
+  
+      d.meta.future_resist_price &&
+  
+    */
 
-  let result_arr = test_data.map((d, idx) => {
-    return {
-      code: d.code,
-      best: best_array[idx],
-      date: d.date,
-      meta: d.meta.insight,
-    };
-  });
-
-  var aa = result_arr.filter(
-    (d) => d.best <= 0.9639742970466614 && !d.meta.future_support_price
-  );
-
-  /*
-    !d.meta.resist_price &&
-    d.meta.support_price
-
-    d.meta.future_resist_price &&
-
-  */
-
-  console.log(
-    aa
-      .sort((a, b) => a.best - b.best)
-      .map((item) => {
-        delete item.meta;
-        return item;
-      })
-  );
-  console.log(aa.length);
+    console.log(
+      aa
+        .sort((a, b) => a.best - b.best)
+        .map((item) => {
+          // delete item.meta;
+          return item;
+        })
+    );
+    console.log(aa.length);
+  } else {
+    console.log("not valid date");
+  }
 });

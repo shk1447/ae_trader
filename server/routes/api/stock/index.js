@@ -525,7 +525,6 @@ module.exports = {
               : false,
         };
       } catch (error) {
-        console.log(error);
         ret = {
           code: code,
           close: 0,

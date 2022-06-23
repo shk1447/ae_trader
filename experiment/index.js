@@ -27,13 +27,13 @@ let modelParams = {
   hiddenLayers: 2,
   latentDim: 2,
   hiddenDim: [7, 3],
-  learningRate: 0.01,
+  learningRate: 0.001,
   adamBeta1: 0.5,
 };
 
-let numSteps = 50000;
+let numSteps = 100000;
 let numEpochs = 1;
-let batchSize = 128;
+let batchSize = 512;
 
 let modelSavePath = path.resolve(__dirname, "./ae_model");
 
@@ -114,7 +114,7 @@ async function train_data(model) {
       bestMetric.tnr
     );
 
-    if (bestMetric.tnr > 0.94 && bestMetric.tpr > 0.94) {
+    if (bestMetric.tnr > 0.98 && bestMetric.tpr > 0.98) {
       console.log("early stopping");
       break;
     }

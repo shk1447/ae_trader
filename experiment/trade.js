@@ -5,10 +5,16 @@ const fsPath = require("fs-path");
 const moment = require("moment");
 const dfd = require("danfojs-node");
 const database = require("./utils/Database");
-const list = JSON.parse(
+let list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
-const oldDate = moment().add(-100, "days");
+
+list = list.filter((s) => {
+  return s.Rate > 3;
+});
+
+console.log(list.length);
+const oldDate = moment().add(-0, "days");
 
 database({
   type: "better-sqlite3",
@@ -89,15 +95,16 @@ database({
     } ORDER BY date desc) GROUP BY code) WHERE code not in 
     (${Object.values(test2)
       .map((v) => `'${v.code}'`)
-      .toString()}) LIMIT ${train_data.length * 9}`
+      .toString()})`
   );
+  console.log("vaild_data : ", aa.length);
   let valid_data = [];
   for (var i = 0; i < aa.length; i++) {
     var item = aa[i];
     if (check_arr.includes(item.code)) continue;
     let scaler = new dfd.StandardScaler();
     let dd = await knex.raw(
-      `SELECT * FROM stock_data_${item.code} ORDER BY date desc LIMIT 100`
+      `SELECT * FROM stock_data_${item.code} WHERE date <= ${item.date} ORDER BY date desc LIMIT 100`
     );
 
     let df = new dfd.DataFrame(
