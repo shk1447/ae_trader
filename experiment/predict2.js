@@ -21,9 +21,9 @@ const fsPath = require("fs-path");
 const moment = require("moment");
 const dfd = require("danfojs-node");
 const database = require("./utils/Database");
-const list = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
-);
+// const list = JSON.parse(
+//   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
+// );
 
 let best_modelPath = path.resolve(__dirname, "./ae_model/model.json");
 database({
@@ -32,17 +32,22 @@ database({
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
-  const oldDate = moment().add(-384, "days");
+  const oldDate = moment().add(-196, "days");
   const list = await knex.raw(`SELECT * FROM stock_list`);
+  // const list = await knex.raw(
+  //   `SELECT * FROM stock_data WHERE marker = '매수' AND date >= ${
+  //     oldDate.unix() * 1000
+  //   }`
+  // );
 
   const test_data = [];
   for (var i = 0; i < list.length; i++) {
     var item = list[i];
 
     let dd = await knex.raw(
-      `SELECT * FROM stock_data_${item.stock_code} WHERE date <= ${
-        oldDate.unix() * 1000
-      } ORDER BY date desc LIMIT 100`
+      `SELECT * FROM stock_data_${
+        item.stock_code ? item.stock_code : item.code
+      } WHERE date <= ${oldDate.unix() * 1000} ORDER BY date desc LIMIT 100`
     );
 
     if (
@@ -67,10 +72,11 @@ database({
       let df_enc = scaler.transform(df);
       if (dd.length == 100) {
         test_data.push({
-          code: item.stock_code,
+          code: item.stock_code ? item.stock_code : item.code,
           data: df_enc.values,
           date: moment(dd[0].date).format("YYYY-MM-DD"),
           meta: dd[0].meta,
+          prev_meta: dd[1].meta,
         });
       }
     }
@@ -89,20 +95,21 @@ database({
 
     let best_array = await best_mse.array();
 
+    // awesome condition
     let result_arr = test_data.map((d, idx) => {
       return {
         code: d.code,
         best: best_array[idx],
         date: d.date,
-        meta: d.meta.insight,
-        buy: d.meta.insight.support <= d.meta.insight.resist,
-        init_trend: d.meta.init_trend,
-        curr_trend: d.meta.curr_trend,
+        buy:
+          d.meta.curr_trend > 0 &&
+          d.meta.segmentation >= d.prev_meta.segmentation &&
+          !d.meta.insight.resist_price,
       };
     });
 
     var aa = result_arr.filter(
-      (d) => d.best <= 0.9266412854194641
+      (d) => d.best <= 0.9266412854194641 && d.buy
       // &&
       // d.buy &&
       // !d.meta.future_support_price &&
