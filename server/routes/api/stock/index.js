@@ -15,6 +15,9 @@ const {
   SMA,
 } = require("technicalindicators");
 
+const tf = require("@tensorflow/tfjs-node-gpu");
+const dfd = require("danfojs-node");
+
 let collecting = false;
 
 const convertToHoga = (price) => {
@@ -566,6 +569,9 @@ module.exports = {
         user_id: req.session.passport.user.id,
       });
       res.status(200).send(data.map((d) => d.code));
+    },
+    model: async (req, res, next) => {
+      res.status(200).send();
     },
   },
   post: {

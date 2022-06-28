@@ -32,7 +32,7 @@ database({
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
-  const oldDate = moment().add(-196, "days");
+  const oldDate = moment().add(-505, "days");
   const list = await knex.raw(`SELECT * FROM stock_list`);
   // const list = await knex.raw(
   //   `SELECT * FROM stock_data WHERE marker = '매수' AND date >= ${
@@ -62,7 +62,8 @@ database({
             (k.meta.insight.support -
               k.meta.insight.resist +
               k.meta.upward_point +
-              k.meta.downward_point) *
+              k.meta.downward_point +
+              k.meta.segmentation) *
             k.meta.curr_trend *
             k.meta.init_trend
           );
@@ -101,15 +102,12 @@ database({
         code: d.code,
         best: best_array[idx],
         date: d.date,
-        buy:
-          d.meta.curr_trend > 0 &&
-          d.meta.segmentation >= d.prev_meta.segmentation &&
-          !d.meta.insight.resist_price,
+        buy: !d.meta.insight.future_support_price,
       };
     });
 
     var aa = result_arr.filter(
-      (d) => d.best <= 0.9266412854194641 && d.buy
+      (d) => d.best <= 0.9381366968154907 && d.buy
       // &&
       // d.buy &&
       // !d.meta.future_support_price &&

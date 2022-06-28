@@ -70,7 +70,8 @@ database({
             (k.meta.insight.support -
               k.meta.insight.resist +
               k.meta.upward_point +
-              k.meta.downward_point) *
+              k.meta.downward_point +
+              k.meta.segmentation) *
             k.meta.curr_trend *
             k.meta.init_trend
           );
@@ -114,7 +115,8 @@ database({
           (k.meta.insight.support -
             k.meta.insight.resist +
             k.meta.upward_point +
-            k.meta.downward_point) *
+            k.meta.downward_point +
+            k.meta.segmentation) *
           k.meta.curr_trend *
           k.meta.init_trend
         );
