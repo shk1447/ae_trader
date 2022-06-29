@@ -14,9 +14,11 @@ const {
   OBV,
   SMA,
 } = require("technicalindicators");
-
+const path = require("path");
 const tf = require("@tensorflow/tfjs-node-gpu");
 const dfd = require("danfojs-node");
+const { disableDeprecationWarnings } = require("@tensorflow/tfjs-node-gpu");
+const _ = require("lodash");
 
 let collecting = false;
 
@@ -41,8 +43,9 @@ const convertToHoga = (price) => {
 };
 
 const collectFunc = async (code, days) => {
-  const stockList = await connector.dao.StockList.select(code);
+  let stockList = await connector.dao.StockList.select(code);
 
+  stockList = _.shuffle(stockList);
   const progress_bar = new cliProgress.SingleBar(
     {},
     cliProgress.Presets.shades_classic
@@ -78,7 +81,7 @@ const collectFunc = async (code, days) => {
         let prev_sell_signal;
 
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
-          let row = all_data[i];
+          let row = { ...all_data[i] };
 
           row["code"] = item.stock_code;
           try {
@@ -121,30 +124,85 @@ const collectFunc = async (code, days) => {
             */
 
             result["meta"] = meta;
+            all_data[i]["meta"] = meta;
 
-            if (prev_result) {
-              if (
-                result.meta.curr_trend > 0 &&
-                ((!prev_result.meta.insight.support_price &&
-                  insight.support_price) ||
-                  (prev_result.meta.insight.resist_price &&
-                    !insight.resist_price)) &&
-                insight.support >= prev_result.meta.insight.resist
-              ) {
-                row["marker"] = "매수";
-                let futures = all_data.slice(i + 1, i + 61);
-                if (futures.length > 0) {
-                  var max_point = [...futures].sort(
-                    (a, b) => b.high - a.high
-                  )[0];
-                  var high_rate = (max_point.high / row.close) * 100;
+            if (i > 100) {
+              let scaler = new dfd.StandardScaler();
+              const dataset = all_data
+                .slice(i - 100, i)
+                .sort((a, b) => b.date - a.date);
+              let df = new dfd.DataFrame(
+                dataset.map((k) => {
+                  return (
+                    (k.meta.insight.support -
+                      k.meta.insight.resist +
+                      k.meta.upward_point +
+                      k.meta.downward_point +
+                      k.meta.segmentation) *
+                    k.meta.curr_trend *
+                    k.meta.init_trend
+                  );
+                })
+              );
+              scaler.fit(df);
+              let df_enc = scaler.transform(df);
+              const test_data = [];
+              if (dataset.length == 100) {
+                test_data.push({
+                  code: item.stock_code,
+                  data: df_enc.values,
+                  meta: dataset[0].meta,
+                });
 
-                  row["result"] = high_rate;
-                } else {
-                  row["result"] = 100;
+                const model_path = path.resolve(
+                  process.env.root_path,
+                  "../experiment/ae_model/model.json"
+                );
+                let best_model = await tf.loadLayersModel(
+                  "file://" + model_path
+                );
+
+                const [best_mse] = tf.tidy(() => {
+                  let dataTensor = tf.tensor2d(
+                    test_data.map((item) => item.data),
+                    [test_data.length, test_data[0].data.length]
+                  );
+                  let preds = best_model.predict(dataTensor, { batchSize: 1 });
+                  return [tf.sub(preds, dataTensor).square().mean(1), preds];
+                });
+
+                let best_array = await best_mse.array();
+
+                let result_arr = test_data.map((d, idx) => {
+                  return {
+                    code: d.code,
+                    best: best_array[idx],
+                    date: d.date,
+                    buy: !d.meta.insight.future_support_price || true,
+                  };
+                });
+
+                var goods = result_arr.filter(
+                  (d) => d.best <= 0.9381366968154907 && d.buy
+                );
+
+                if (goods.length > 0) {
+                  row["marker"] = "매수";
+
+                  let futures = all_data.slice(i + 1, i + 61);
+                  if (futures.length > 0) {
+                    var max_point = [...futures].sort(
+                      (a, b) => b.high - a.high
+                    )[0];
+                    var high_rate = (max_point.high / row.close) * 100;
+
+                    row["result"] = high_rate;
+                  } else {
+                    row["result"] = 100;
+                  }
+
+                  recommended_rows.push(row);
                 }
-
-                recommended_rows.push(row);
               }
             }
 
