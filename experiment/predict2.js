@@ -32,7 +32,7 @@ database({
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
-  const oldDate = moment().add(-505, "days");
+  const oldDate = moment().add(-0, "days");
   const list = await knex.raw(`SELECT * FROM stock_list`);
   // const list = await knex.raw(
   //   `SELECT * FROM stock_data WHERE marker = '매수' AND date >= ${
@@ -69,6 +69,7 @@ database({
           );
         })
       );
+      console.log(df);
       scaler.fit(df);
       let df_enc = scaler.transform(df);
       if (dd.length == 100) {

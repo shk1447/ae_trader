@@ -46,6 +46,13 @@ const collectFunc = async (code, days) => {
   let stockList = await connector.dao.StockList.select(code);
 
   stockList = _.shuffle(stockList);
+
+  const model_path = path.resolve(
+    process.env.root_path,
+    "../experiment/ae_model/model.json"
+  );
+  let best_model = await tf.loadLayersModel("file://" + model_path);
+
   const progress_bar = new cliProgress.SingleBar(
     {},
     cliProgress.Presets.shades_classic
@@ -154,14 +161,6 @@ const collectFunc = async (code, days) => {
                   meta: dataset[0].meta,
                 });
 
-                const model_path = path.resolve(
-                  process.env.root_path,
-                  "../experiment/ae_model/model.json"
-                );
-                let best_model = await tf.loadLayersModel(
-                  "file://" + model_path
-                );
-
                 const [best_mse] = tf.tidy(() => {
                   let dataTensor = tf.tensor2d(
                     test_data.map((item) => item.data),
@@ -178,9 +177,13 @@ const collectFunc = async (code, days) => {
                     code: d.code,
                     best: best_array[idx],
                     date: d.date,
-                    buy: !d.meta.insight.future_support_price || true,
+                    buy: !d.meta.insight.future_support_price,
                   };
                 });
+
+                if (result_arr.length > 0) {
+                  row["label"] = result_arr[0].best;
+                }
 
                 var goods = result_arr.filter(
                   (d) => d.best <= 0.9381366968154907 && d.buy
@@ -333,7 +336,7 @@ if (cluster.isMaster) {
     false,
     "Asia/Seoul"
   );
-  collect_job.start();
+  // collect_job.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
@@ -462,7 +465,7 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return Math.round(d.result) < 103;
+          return Math.round(d.result) < 102;
         })
         .forEach((d) => {
           if (d.volume > 0) {

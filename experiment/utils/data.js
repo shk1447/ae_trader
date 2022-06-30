@@ -11,6 +11,28 @@ const _ = require("lodash");
 const fs = require("fs");
 const path = require("path");
 
+const getReverseStockData = function () {
+  let stockTrain = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, "../reverse_train2.json"))
+  );
+  let validStock = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, "../reverse_valid2.json"))
+  );
+  let testStock = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, "../test.json"))
+  );
+
+  // // Only usse normal data (target == 1) for training.
+  // for (row in ecgTrain) {
+  //     let val = ecgTrain[row]
+  //     if (val.target + "" === 1 + "") {
+  //         trainEcg.push(val)
+  //     }
+  // }
+  // console.log("inliers", trainEcg.length, testEcg.length);
+  return [_.shuffle(stockTrain), _.shuffle(validStock), _.shuffle(testStock)];
+};
+
 const getStockData = function () {
   let stockTrain = JSON.parse(
     fs.readFileSync(path.resolve(__dirname, "../train2.json"))
@@ -74,4 +96,5 @@ function subsetTestData(testData, maxTestData) {
 module.exports = {
   getEcgData: getEcgData,
   getStockData: getStockData,
+  getReverseStockData: getReverseStockData,
 };
