@@ -42,16 +42,19 @@ const convertToHoga = (price) => {
   return hoga_price;
 };
 
+const model_path = path.resolve(
+  process.env.root_path,
+  "../experiment/ae_model/model.json"
+);
+let best_model;
+tf.loadLayersModel("file://" + model_path).then((model) => {
+  best_model = model;
+});
+
 const collectFunc = async (code, days) => {
   let stockList = await connector.dao.StockList.select(code);
 
   stockList = _.shuffle(stockList);
-
-  const model_path = path.resolve(
-    process.env.root_path,
-    "../experiment/ae_model/model.json"
-  );
-  let best_model = await tf.loadLayersModel("file://" + model_path);
 
   const progress_bar = new cliProgress.SingleBar(
     {},
@@ -330,13 +333,13 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "45 8,12,15 * * 1-5",
+    "46 8,14,15 * * 1-5",
     collect_job_func,
     null,
     false,
     "Asia/Seoul"
   );
-  // collect_job.start();
+  collect_job.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
@@ -465,7 +468,7 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return Math.round(d.result) < 102;
+          return Math.round(d.result) < 103;
         })
         .forEach((d) => {
           if (d.volume > 0) {
@@ -557,34 +560,21 @@ module.exports = {
           low: curr_data.low,
           buy_price: support_price,
           volume_buy: volume_buy > 5 ? 5 : volume_buy,
-          init_buy:
-            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
-            curr_data.meta.insight.support > 0 &&
-            support_price <= prev_data.close &&
+          water_buy:
             ((curr_data.low <= support_price &&
-              support_price <= curr_data.close) ||
+              support_price < curr_data.close) ||
               (curr_data.low <= init_support_price &&
-                init_support_price <= curr_data.close)) &&
-            suggest_data.close >= curr_data.close &&
-            curr_data.open < curr_data.close &&
-            curr_data.close - curr_data.open >
-              curr_data.high - curr_data.close &&
-            curr_data.volume > 0
+                init_support_price < curr_data.close)) &&
+            support_count > 0 &&
+            curr_data.volume > 0,
+          init_buy:
+            curr_data.close - curr_data.low >=
+              curr_data.high - curr_data.close && curr_data.volume > 0
               ? true
               : false,
           buy:
-            curr_data.meta.insight.support > curr_data.meta.insight.resist &&
-            curr_data.meta.insight.support > 0 &&
-            support_price <= prev_data.close &&
-            ((curr_data.low <= support_price &&
-              support_price <= curr_data.close) ||
-              (curr_data.low <= init_support_price &&
-                init_support_price <= curr_data.close)) &&
-            suggest_data.close >= curr_data.close &&
-            curr_data.open < curr_data.close &&
-            curr_data.close - curr_data.open >
-              curr_data.high - curr_data.close &&
-            curr_data.volume > 0
+            curr_data.close - curr_data.low >=
+              curr_data.high - curr_data.close && curr_data.volume > 0
               ? true
               : false,
         };
@@ -596,6 +586,7 @@ module.exports = {
           buy_price: 0,
           init_buy: false,
           buy: false,
+          water_buy: false,
         };
       }
       res.status(200).send(ret);
@@ -639,47 +630,74 @@ module.exports = {
     check: async (req, res, next) => {
       var ret = "대기";
       try {
-        let result = {
-          curr_trend: 0,
-          init_trend: 0,
-          segmentation: [],
-          upward_point: [],
-          downward_point: [],
-        };
+        var data = [];
+        var insights = [];
 
-        analysis.segmentation(req.body.data, result, "close");
+        for (var i = 1; i <= 100; i++) {
+          let result = {
+            curr_trend: 0,
+            init_trend: 0,
+            segmentation: [],
+            upward_point: [],
+            downward_point: [],
+          };
 
-        let insight = analysis.cross_point(
-          result,
-          req.body.data[req.body.data.length - 1],
-          "close"
-        );
+          var _dd = req.body.data.slice(0, req.body.data.length - i);
+          analysis.segmentation(_dd, result, "close");
 
-        if (
-          !isNaN(insight.future_support_price) &&
-          isNaN(insight.future_resist_price)
-        ) {
-          ret = "매도";
-        } else if (
-          isNaN(insight.future_support_price) &&
-          !isNaN(insight.future_resist_price) &&
-          !isNaN(insight.support_price)
-        ) {
-          ret = "매수";
-        } else {
-          if (
-            req.body.init &&
-            !isNaN(insight.support_price) &&
-            isNaN(insight.resist_price) &&
-            insight.support >= insight.resist
-          ) {
-            ret = "매수";
-          }
+          let insight = analysis.cross_point(
+            result,
+            _dd[_dd.length - 1],
+            "close"
+          );
+          insight["date"] = _dd[_dd.length - 1].date;
+
+          data.push(
+            (insight.support -
+              insight.resist +
+              result.upward_point +
+              result.downward_point +
+              result.segmentation) *
+              result.curr_trend *
+              result.init_trend
+          );
+          insights.push(insight);
         }
 
-        if (ret.includes("매수")) {
+        let scaler = new dfd.StandardScaler();
+        let df = new dfd.DataFrame(data);
+
+        scaler.fit(df);
+        let df_enc = scaler.transform(df);
+        const test_data = [];
+
+        test_data.push({
+          data: df_enc.values,
+        });
+
+        const [best_mse] = tf.tidy(() => {
+          let dataTensor = tf.tensor2d(
+            test_data.map((item) => item.data),
+            [test_data.length, test_data[0].data.length]
+          );
+          let preds = best_model.predict(dataTensor, { batchSize: 1 });
+          return [tf.sub(preds, dataTensor).square().mean(1), preds];
+        });
+
+        let best_array = await best_mse.array();
+
+        let result_arr = test_data.map((d, idx) => {
+          return {
+            best: best_array[idx],
+          };
+        });
+
+        var goods = result_arr.filter((d) => d.best <= 0.9381366968154907);
+
+        if (goods.length > 0) {
+          ret = "매수";
           vases.logger.info(
-            "[trading] : " +
+            "[trading_model] : " +
               req.body.code +
               "(" +
               ret +
@@ -687,18 +705,56 @@ module.exports = {
               req.body.volume_buy
           );
         } else {
-          vases.logger.info(
-            "[trading] : " +
-              req.body.code +
-              "(" +
-              ret +
-              ") - " +
-              req.body.volume_buy
-          );
-          console.log(insight);
+          if (
+            isNaN(insights[0].future_resist_price) &&
+            !isNaN(insights[0].future_support_price)
+          ) {
+            ret = "매도";
+          } else if (
+            !isNaN(insights[1].resist_price) &&
+            isNaN(insights[0].resist_price) &&
+            !isNaN(insights[0].future_support_price)
+          ) {
+            ret = "매도";
+          } else if (
+            isNaN(insights[0].resist_price) &&
+            isNaN(insights[0].future_support_price) &&
+            !isNaN(insights[1].future_support_price)
+          ) {
+            ret = "매수";
+          } else {
+            if (
+              !isNaN(insights[0].support_price) &&
+              isNaN(insights[0].resist_price) &&
+              insights[0].support >= insights[0].resist &&
+              insights[1].support < insights[1].resist
+            ) {
+              ret = "매수";
+            }
+          }
         }
       } catch (error) {
         console.log(error);
+      }
+
+      if (ret.includes("매수")) {
+        vases.logger.info(
+          "[trading] : " +
+            req.body.code +
+            "(" +
+            ret +
+            ") - " +
+            req.body.volume_buy
+        );
+      } else {
+        vases.logger.info(
+          "[trading] : " +
+            req.body.code +
+            "(" +
+            ret +
+            ") - " +
+            req.body.volume_buy
+        );
       }
 
       res.status(200).send(ret);

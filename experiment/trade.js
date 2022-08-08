@@ -10,7 +10,7 @@ let list = JSON.parse(
 );
 
 list = list.filter((s) => {
-  return s.Rate > 3;
+  return s.Rate > 2;
 });
 
 console.log(list.length);
@@ -47,7 +47,9 @@ database({
         moment(test2[item.stock_name].time).unix() * 1000
       } AND result is not null ORDER BY date desc LIMIT 1`
     );
-    test2[item.stock_name].date = qqq[0].date;
+    if (qqq.length > 0) {
+      test2[item.stock_name].date = qqq[0].date;
+    }
     // console.log(qqq[0].date);
   }
 
