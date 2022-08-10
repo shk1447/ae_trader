@@ -333,7 +333,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "46 8,14,15 * * 1-5",
+    "45 8,14,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -565,7 +565,7 @@ module.exports = {
               support_price < curr_data.close) ||
               (curr_data.low <= init_support_price &&
                 init_support_price < curr_data.close)) &&
-            support_count > 0 &&
+            support_count > 1 &&
             curr_data.volume > 0,
           init_buy:
             curr_data.close - curr_data.low >=

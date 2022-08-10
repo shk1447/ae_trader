@@ -1,66 +1,123 @@
 const tf = require("@tensorflow/tfjs-node-gpu");
 const _ = require("lodash");
-const dataUtils = require("./utils/data.js");
-const ae_model = require("./models/ae.js");
 const path = require("path");
-const { mainModule } = require("process");
+const fs = require("fs");
+const fsPath = require("fs-path");
 const moment = require("moment");
+const dfd = require("danfojs-node");
+const database = require("./utils/Database");
+// const list = JSON.parse(
+//   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
+// );
 
-let trainStock, validStock, testStock;
-[trainStock, validStock, testStock] = dataUtils.getStockData();
+let best_modelPath = path.resolve(__dirname, "./new_ae_model/model.json");
+database({
+  type: "better-sqlite3",
+  "better-sqlite3": {
+    filename: "../server/trader.db",
+  },
+}).then(async ({ knex }) => {
+  const oldDate = moment().add(-0, "days");
+  const list = await knex.raw(`SELECT * FROM stock_list`);
+  // const list = await knex.raw(
+  //   `SELECT * FROM stock_data WHERE marker = '매수' AND date >= ${
+  //     oldDate.unix() * 1000
+  //   }`
+  // );
 
-let best_modelPath = path.resolve(__dirname, "./ae_model/model.json");
+  const test_data = [];
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i];
 
-var result = {};
-console.log(testStock.length, testStock[0].data.length);
-async function main() {
-  let best_model = await tf.loadLayersModel("file://" + best_modelPath);
-
-  // const [worst_mse] = tf.tidy(() => {
-  //   let dataTensor = tf.tensor2d(testStock.map(item => item.data), [testStock.length, testStock[0].data.length])
-  //   let preds = worst_model.predict(dataTensor, { batchSize: 1 })
-  //   return [tf.sub(preds, dataTensor).square().mean(1), preds]
-  // })
-
-  const [best_mse] = tf.tidy(() => {
-    let dataTensor = tf.tensor2d(
-      trainStock.map((item) => item.data),
-      [trainStock.length, trainStock[0].data.length]
+    let dd = await knex.raw(
+      `SELECT * FROM stock_data_${
+        item.stock_code ? item.stock_code : item.code
+      } WHERE date <= ${oldDate.unix() * 1000} ORDER BY date desc LIMIT 100`
     );
-    let preds = best_model.predict(dataTensor, { batchSize: 1 });
-    return [tf.sub(preds, dataTensor).square().mean(1), preds];
-  });
 
-  // worst : 0.9460195899009705
-  // best : 1.0003410577774048
-  // let worst_array = await worst_mse.array();
-  let best_array = await best_mse.array();
+    if (
+      dd.length > 0 &&
+      moment(dd[0].date).format("YYYY-MM-DD") == oldDate.format("YYYY-MM-DD")
+    ) {
+      let scaler = new dfd.StandardScaler();
+      let df = new dfd.DataFrame(
+        dd.map((k) => {
+          k.meta = JSON.parse(k.meta);
+          return (
+            (k.meta.insight.support -
+              k.meta.insight.resist +
+              k.meta.upward_point +
+              k.meta.downward_point +
+              k.meta.segmentation) *
+            k.meta.curr_trend *
+            k.meta.init_trend
+          );
+        })
+      );
+      scaler.fit(df);
+      let df_enc = scaler.transform(df);
+      if (dd.length == 100) {
+        test_data.push({
+          code: item.stock_code ? item.stock_code : item.code,
+          data: df_enc.values,
+          date: moment(dd[0].date).format("YYYY-MM-DD"),
+          meta: dd[0].meta,
+          prev_meta: dd[1].meta,
+        });
+      }
+    }
+  }
+  if (test_data.length > 0) {
+    let best_model = await tf.loadLayersModel("file://" + best_modelPath);
 
-  let result_arr = trainStock.map((d, idx) => {
-    console.log(best_array[idx]);
-    return {
-      code: d.code,
-      best: best_array[idx],
-      date: d.date,
-    };
-  });
+    const [best_mse] = tf.tidy(() => {
+      let dataTensor = tf.tensor2d(
+        test_data.map((item) => item.data),
+        [test_data.length, test_data[0].data.length]
+      );
+      let preds = best_model.predict(dataTensor, { batchSize: 1 });
+      return [tf.sub(preds, dataTensor).square().mean(1), preds];
+    });
 
-  var aa = result_arr.filter((d) => d.best <= 0.49506646394729614);
-  aa.forEach((d) => {
-    console.log(d.code, moment(d.date).format("YYYY-MM-DD"));
-  });
-  console.log(aa.length);
+    let best_array = await best_mse.array();
 
-  // array.filter((d) => d < 1.0003410577774048).forEach((item, idx) => {
-  //   if (result[testStock[idx].code]) {
-  //     result[testStock[idx].code]++;
-  //   } else {
-  //     result[testStock[idx].code] = 1;
-  //   }
-  //   console.log(testStock[idx].code, testStock[idx].date, testStock[idx].high, item)
-  // })
-}
+    // awesome condition
+    let result_arr = test_data.map((d, idx) => {
+      return {
+        code: d.code,
+        best: best_array[idx],
+        date: d.date,
+        buy: !d.meta.insight.future_support_price,
+      };
+    });
 
-main();
+    var aa = result_arr.filter(
+      (d) => d.best <= 0.8927896022796631
+      // &&
+      // d.buy &&
+      // !d.meta.future_support_price &&
+      // d.meta.future_resist_price &&
+      // !d.meta.resist_price
+    );
 
-console.log(result);
+    /*
+      !d.meta.resist_price &&
+      d.meta.support_price
+  
+      d.meta.future_resist_price &&
+  
+    */
+
+    console.log(
+      aa
+        .sort((a, b) => a.best - b.best)
+        .map((item) => {
+          // delete item.meta;
+          return item;
+        })
+    );
+    console.log(aa.length);
+  } else {
+    console.log("not valid date");
+  }
+});
