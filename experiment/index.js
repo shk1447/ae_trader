@@ -35,7 +35,7 @@ let numSteps = 100000;
 let numEpochs = 1;
 let batchSize = 512;
 
-let modelSavePath = path.resolve(__dirname, "./ae_model");
+let modelSavePath = path.resolve(__dirname, "./new_ae_model");
 
 let model, encoder, decoder;
 [model, encoder, decoder] = ae_model.buildModel(modelParams);

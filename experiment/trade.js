@@ -10,7 +10,7 @@ let list = JSON.parse(
 );
 
 list = list.filter((s) => {
-  return s.Rate > 2;
+  return s.Rate > 3;
 });
 
 console.log(list.length);
@@ -93,7 +93,7 @@ database({
   const check_arr = Object.values(test2).map((d) => d.code);
 
   const aa = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 103 AND result > 100 AND date <= ${
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result <= 102 AND date <= ${
       oldDate.unix() * 1000
     } ORDER BY date desc) GROUP BY code) WHERE code not in 
     (${Object.values(test2)

@@ -189,7 +189,7 @@ const collectFunc = async (code, days) => {
                 }
 
                 var goods = result_arr.filter(
-                  (d) => d.best <= 0.9381366968154907 && d.buy
+                  (d) => d.best <= 0.9139226675033569 && d.buy
                 );
 
                 if (goods.length > 0) {
@@ -468,13 +468,12 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return Math.round(d.result) < 103;
+          return Math.round(d.result) < 104;
         })
         .forEach((d) => {
           if (d.volume > 0) {
             d["meta"] = JSON.parse(d.meta);
-            var IsToday = d.meta.date == moment().format("YYYY-MM-DD");
-
+            var IsToday = moment(d.meta.date) >= moment().add("day", -3);
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -561,6 +560,10 @@ module.exports = {
           buy_price: support_price,
           volume_buy: volume_buy > 5 ? 5 : volume_buy,
           water_buy:
+            suggest_data.close >= curr_data.close &&
+            curr_data.volume / avg_volume >= 1 &&
+            curr_data.close - curr_data.low >=
+              curr_data.high - curr_data.close &&
             ((curr_data.low <= support_price &&
               support_price < curr_data.close) ||
               (curr_data.low <= init_support_price &&
@@ -568,13 +571,14 @@ module.exports = {
             support_count > 1 &&
             curr_data.volume > 0,
           init_buy:
-            curr_data.close - curr_data.low >=
-              curr_data.high - curr_data.close && curr_data.volume > 0
+            suggest_data.close >= curr_data.close && curr_data.volume > 0
               ? true
               : false,
           buy:
-            curr_data.close - curr_data.low >=
-              curr_data.high - curr_data.close && curr_data.volume > 0
+            suggest_data.close >= curr_data.close &&
+            curr_data.volume / avg_volume >= 0.8 &&
+            power >= 90 &&
+            curr_data.volume > 0
               ? true
               : false,
         };
@@ -692,7 +696,7 @@ module.exports = {
           };
         });
 
-        var goods = result_arr.filter((d) => d.best <= 0.9381366968154907);
+        var goods = result_arr.filter((d) => d.best <= 0.9139226675033569);
 
         if (goods.length > 0) {
           ret = "매수";
