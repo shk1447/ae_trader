@@ -189,7 +189,7 @@ const collectFunc = async (code, days) => {
                 }
 
                 var goods = result_arr.filter(
-                  (d) => d.best <= 0.9139226675033569 && d.buy
+                  (d) => d.best <= 0.89891517162323
                 );
 
                 if (goods.length > 0) {
@@ -333,7 +333,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "45 8,14,15 * * 1-5",
+    "58 8,14,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -468,12 +468,12 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return Math.round(d.result) < 104;
+          return d.result <= 102;
         })
         .forEach((d) => {
           if (d.volume > 0) {
             d["meta"] = JSON.parse(d.meta);
-            var IsToday = moment(d.meta.date) >= moment().add("day", -3);
+            var IsToday = moment(d.meta.date) >= moment().add("day", -7);
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -553,6 +553,7 @@ module.exports = {
             "[overflow volume] : " + code + "(" + volume_buy + ")"
           );
         }
+
         ret = {
           code: curr_data.code,
           close: curr_data.close,
@@ -562,6 +563,7 @@ module.exports = {
           water_buy:
             suggest_data.close >= curr_data.close &&
             curr_data.volume / avg_volume >= 1 &&
+            power >= 100 &&
             curr_data.close - curr_data.low >=
               curr_data.high - curr_data.close &&
             ((curr_data.low <= support_price &&
@@ -571,13 +573,18 @@ module.exports = {
             support_count > 1 &&
             curr_data.volume > 0,
           init_buy:
-            suggest_data.close >= curr_data.close && curr_data.volume > 0
+            suggest_data.close >= curr_data.close &&
+            curr_data.volume / avg_volume >= 0.8 &&
+            !prev_data.meta.insight.support_price &&
+            curr_data.meta.insight.support_price &&
+            curr_data.volume > 0
               ? true
               : false,
           buy:
             suggest_data.close >= curr_data.close &&
             curr_data.volume / avg_volume >= 0.8 &&
-            power >= 90 &&
+            !prev_data.meta.insight.support_price &&
+            curr_data.meta.insight.support_price &&
             curr_data.volume > 0
               ? true
               : false,
@@ -696,7 +703,7 @@ module.exports = {
           };
         });
 
-        var goods = result_arr.filter((d) => d.best <= 0.9139226675033569);
+        var goods = result_arr.filter((d) => d.best <= 0.89891517162323);
 
         if (goods.length > 0) {
           ret = "매수";

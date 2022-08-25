@@ -10,11 +10,11 @@ let list = JSON.parse(
 );
 
 list = list.filter((s) => {
-  return s.Rate > 3;
+  return s.Rate > 2.5;
 });
 
 console.log(list.length);
-const oldDate = moment().add(-0, "days");
+const oldDate = moment().add(-60, "days");
 
 database({
   type: "better-sqlite3",

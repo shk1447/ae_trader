@@ -10,14 +10,14 @@ const database = require("./utils/Database");
 //   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 // );
 
-let best_modelPath = path.resolve(__dirname, "./new_ae_model/model.json");
+let best_modelPath = path.resolve(__dirname, "./ae_model/model.json");
 database({
   type: "better-sqlite3",
   "better-sqlite3": {
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
-  const oldDate = moment().add(-0, "days");
+  const oldDate = moment().add(-197, "days");
   const list = await knex.raw(`SELECT * FROM stock_list`);
   // const list = await knex.raw(
   //   `SELECT * FROM stock_data WHERE marker = '매수' AND date >= ${
@@ -92,7 +92,7 @@ database({
     });
 
     var aa = result_arr.filter(
-      (d) => d.best <= 0.8927896022796631
+      (d) => d.best <= 0.89891517162323
       // &&
       // d.buy &&
       // !d.meta.future_support_price &&
