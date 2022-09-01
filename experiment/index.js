@@ -25,7 +25,7 @@ let trainStock, testStock;
 let modelParams = {
   numFeatures: trainStock[0].data.length,
   hiddenLayers: 2,
-  latentDim: 2,
+  latentDim: 4,
   hiddenDim: [7, 3],
   learningRate: 0.001,
   adamBeta1: 0.5,
@@ -90,9 +90,11 @@ function getPredictions() {
   //   });
   // })
 }
-
+let best_loss = 9999;
 let best_acc = 0;
+let patient = 50;
 async function train_data(model) {
+  let breaker = false;
   for (let i = 0; i < numSteps; i++) {
     startTime = new Date();
     const res = await model.fit(xs, xs, {
@@ -114,10 +116,7 @@ async function train_data(model) {
       bestMetric.tnr
     );
 
-    if (bestMetric.tnr > 0.98 && bestMetric.tpr > 0.98) {
-      console.log("early stopping");
-      break;
-    }
+    if (bestMetric.tpr > 0.98 && bestMetric.tnr > 0.98) break;
   }
 
   console.log("best : ", best_acc);

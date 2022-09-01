@@ -10,7 +10,7 @@ let list = JSON.parse(
 );
 
 list = list.filter((s) => {
-  return s.Rate > 2.5;
+  return s.Rate > 3;
 });
 
 console.log(list.length);
@@ -93,7 +93,7 @@ database({
   const check_arr = Object.values(test2).map((d) => d.code);
 
   const aa = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result <= 102 AND date <= ${
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 101 AND date <= ${
       oldDate.unix() * 1000
     } ORDER BY date desc) GROUP BY code) WHERE code not in 
     (${Object.values(test2)
@@ -134,10 +134,8 @@ database({
     }
   }
   console.log(valid_data.length);
-
-  valid_data = valid_data.concat(train_data);
-
   valid_data = _.shuffle(valid_data);
+  valid_data = valid_data.concat(train_data);
 
   fsPath.writeFileSync(
     path.resolve(__dirname, `./train2.json`),
@@ -149,4 +147,5 @@ database({
     JSON.stringify(valid_data)
   );
   console.log(train_data.length);
+  console.log(valid_data.length);
 });

@@ -526,9 +526,14 @@ module.exports = {
             support_price += datum.meta.insight.support_price;
             support_count++;
           }
+          if (datum.meta.insight.future_support_price) {
+            support_price += datum.meta.insight.future_support_price;
+            support_count++;
+          }
           avg_volume += datum["volume"];
           avg_count++;
         });
+
         support_price = support_price / support_count;
         avg_volume = avg_volume / avg_count;
 
@@ -562,29 +567,20 @@ module.exports = {
           volume_buy: volume_buy > 5 ? 5 : volume_buy,
           water_buy:
             suggest_data.close >= curr_data.close &&
-            curr_data.volume / avg_volume >= 1 &&
-            power >= 100 &&
-            curr_data.close - curr_data.low >=
-              curr_data.high - curr_data.close &&
+            curr_data.volume > 0 &&
             ((curr_data.low <= support_price &&
               support_price < curr_data.close) ||
               (curr_data.low <= init_support_price &&
-                init_support_price < curr_data.close)) &&
-            support_count > 1 &&
-            curr_data.volume > 0,
-          init_buy:
-            suggest_data.close >= curr_data.close &&
-            curr_data.volume / avg_volume >= 0.8 &&
-            !prev_data.meta.insight.support_price &&
-            curr_data.meta.insight.support_price &&
-            curr_data.volume > 0
+                init_support_price < curr_data.close &&
+                support_count > 1))
               ? true
               : false,
+          init_buy: false,
           buy:
+            curr_data.volume / avg_volume >= 0.5 &&
+            curr_data.close - curr_data.low >
+              curr_data.high - curr_data.close &&
             suggest_data.close >= curr_data.close &&
-            curr_data.volume / avg_volume >= 0.8 &&
-            !prev_data.meta.insight.support_price &&
-            curr_data.meta.insight.support_price &&
             curr_data.volume > 0
               ? true
               : false,
@@ -644,7 +640,7 @@ module.exports = {
         var data = [];
         var insights = [];
 
-        for (var i = 1; i <= 100; i++) {
+        for (var i = 0; i <= 99; i++) {
           let result = {
             curr_trend: 0,
             init_trend: 0,
@@ -722,8 +718,8 @@ module.exports = {
           ) {
             ret = "매도";
           } else if (
-            !isNaN(insights[1].resist_price) &&
-            isNaN(insights[0].resist_price) &&
+            isNaN(insights[1].resist_price) &&
+            !isNaN(insights[0].resist_price) &&
             !isNaN(insights[0].future_support_price)
           ) {
             ret = "매도";
@@ -733,15 +729,12 @@ module.exports = {
             !isNaN(insights[1].future_support_price)
           ) {
             ret = "매수";
-          } else {
-            if (
-              !isNaN(insights[0].support_price) &&
-              isNaN(insights[0].resist_price) &&
-              insights[0].support >= insights[0].resist &&
-              insights[1].support < insights[1].resist
-            ) {
-              ret = "매수";
-            }
+          } else if (
+            isNaN(insights[1].support_price) &&
+            !isNaN(insights[0].support_price) &&
+            isNaN(insights[0].future_support_price)
+          ) {
+            ret = "매수";
           }
         }
       } catch (error) {
