@@ -91,7 +91,9 @@ function getPredictions() {
   // })
 }
 
+let best_loss = 9999;
 let best_acc = 0;
+let patient = 1000;
 async function train_data(model) {
   for (let i = 0; i < numSteps; i++) {
     startTime = new Date();
@@ -114,7 +116,14 @@ async function train_data(model) {
       bestMetric.tnr
     );
 
-    if (bestMetric.tnr > 0.98 && bestMetric.tpr > 0.98) {
+    patient -= 1;
+
+    if (res.history.val_loss[0] < best_loss) {
+      best_loss = res.history.val_loss[0];
+      patient = 1000;
+    }
+
+    if (patient == 0) {
       console.log("early stopping");
       break;
     }

@@ -23,14 +23,11 @@ database({
   },
 }).then(async ({ knex }) => {
   const aa = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 102 AND result > 100 AND date <= ${
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 103 AND result > 99 AND date <= ${
       oldDate.unix() * 1000
-    } ORDER BY date desc) GROUP BY code) WHERE code not in 
-    (${Object.values(test2)
-      .map((v) => `'${v.code}'`)
-      .toString()})`
+    } ORDER BY date desc) GROUP BY code)`
   );
-  console.log("vaild_data : ", aa.length);
+  console.log("train_data : ", aa.length);
   let train_data = [];
   for (var i = 0; i < aa.length; i++) {
     var item = aa[i];
@@ -65,12 +62,9 @@ database({
   }
 
   const aa1 = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result > 109 AND date <= ${
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result > 105 AND date <= ${
       oldDate.unix() * 1000
-    } ORDER BY date desc) GROUP BY code) WHERE code not in 
-    (${Object.values(test2)
-      .map((v) => `'${v.code}'`)
-      .toString()})`
+    } ORDER BY date desc) GROUP BY code)`
   );
   console.log("vaild_data : ", aa1.length);
   let valid_data = [];
@@ -105,7 +99,6 @@ database({
       });
     }
   }
-  console.log(valid_data.length);
 
   valid_data = valid_data.concat(train_data);
 
@@ -120,5 +113,7 @@ database({
     path.resolve(__dirname, `./reverse_valid2.json`),
     JSON.stringify(valid_data)
   );
+
+  console.log(valid_data.length);
   console.log(train_data.length);
 });
