@@ -66,6 +66,8 @@ function trend(data, result, trend_type, firstValue, key) {
     });
 
     if (min_idx) {
+      result.segmentation[result.segmentation.length - 1].avg =
+        (result.segmentation[result.segmentation.length - 1].avg + _close) / 2;
       result[trend_type + "_point"].push({
         avg_volume: _volume / _cnt,
         degree: min_degree,
@@ -74,7 +76,7 @@ function trend(data, result, trend_type, firstValue, key) {
         close: _close,
         diff: diff,
         date: data[min_idx].date,
-        seg_idx: result.segmentation.length,
+        seg_idx: result.segmentation.length - 1,
       });
       // result.curr_point.push({ avg_volume: _volume / _cnt, degree: min_degree, high: _high, low: _low, close: _close, diff: diff, date: moment(data[min_idx].date).format('YYYY-MM-DD') })
       trend(
@@ -105,8 +107,20 @@ function segmentation(data, result, key) {
 
     if (!result.init_trend) result.init_trend = trend_type == "upward" ? 1 : -1;
 
+    const max_vol = data.reduce(function (prev, curr) {
+      return prev["volume"] > curr["volume"] ? prev : curr;
+    });
+
     switch (trend_type) {
       case "upward":
+        result.segmentation.push({
+          from: min,
+          min: min,
+          max: max,
+          type: trend_type,
+          max_vol: max_vol,
+          avg: min.close,
+        });
         trend(
           [...data].slice(min_idx, max_idx + 1),
           result,
@@ -116,15 +130,17 @@ function segmentation(data, result, key) {
         );
         data = data.slice(max_idx);
         result.curr_trend = trend_type == "upward" ? 1 : -1;
-        result.segmentation.push({
-          from: min,
-          min: min,
-          max: max,
-          type: trend_type,
-        });
 
         break;
       case "downward":
+        result.segmentation.push({
+          from: max,
+          max: max,
+          min: min,
+          type: trend_type,
+          max_vol: max_vol,
+          avg: max.close,
+        });
         trend(
           [...data].slice(max_idx, min_idx + 1),
           result,
@@ -134,12 +150,6 @@ function segmentation(data, result, key) {
         );
         data = data.slice(min_idx);
         result.curr_trend = trend_type == "upward" ? 1 : -1;
-        result.segmentation.push({
-          from: max,
-          max: max,
-          min: min,
-          type: trend_type,
-        });
 
         break;
     }
@@ -161,6 +171,7 @@ function cross_point(result, pick, key) {
       );
       var std = up.date < down.date ? up : down;
       var std_idx = std.seg_idx;
+
       if (
         test[key] > result.segmentation[std_idx].min.low &&
         result.segmentation[std_idx].max.high > test[key]
@@ -190,13 +201,22 @@ function cross_point(result, pick, key) {
   var future_resist_price = _.mean([...future_resist].map((d) => d.close));
   var future_support_price = _.mean([...future_support].map((d) => d.close));
 
+  var cross_volume = _.mean(
+    [...resist, ...support, ...future_resist, ...future_support].map(
+      (d) => d.volume
+    )
+  );
+
   return {
-    resist: resist.length + future_support.length,
-    support: support.length + future_resist.length,
+    resist: resist.length,
+    support: support.length,
+    future_resist: future_resist.length,
+    future_support: future_support.length,
     resist_price: resist_price,
     support_price: support_price,
     future_resist_price: future_resist_price,
     future_support_price: future_support_price,
+    cross_volume: cross_volume,
   };
 }
 

@@ -15,9 +15,7 @@ const {
   SMA,
 } = require("technicalindicators");
 const path = require("path");
-const tf = require("@tensorflow/tfjs-node-gpu");
-const dfd = require("danfojs-node");
-const { disableDeprecationWarnings } = require("@tensorflow/tfjs-node-gpu");
+
 const _ = require("lodash");
 
 let collecting = false;
@@ -42,14 +40,14 @@ const convertToHoga = (price) => {
   return hoga_price;
 };
 
-const model_path = path.resolve(
-  process.env.root_path,
-  "../experiment/ae_model/model.json"
-);
-let best_model;
-tf.loadLayersModel("file://" + model_path).then((model) => {
-  best_model = model;
-});
+// const model_path = path.resolve(
+//   process.env.root_path,
+//   "../experiment/ae_model/model.json"
+// );
+// let best_model;
+// tf.loadLayersModel("file://" + model_path).then((model) => {
+//   best_model = model;
+// });
 
 const collectFunc = async (code, days) => {
   let stockList = await connector.dao.StockList.select(code);
@@ -99,6 +97,8 @@ const collectFunc = async (code, days) => {
               volume: row.volume,
               close: row.close,
               high: row.high,
+              open: row.open,
+              low: row.low,
               curr_trend: 0,
               init_trend: 0,
               segmentation: [],
@@ -119,9 +119,17 @@ const collectFunc = async (code, days) => {
             result.downward_point.sort((a, b) => a.date - b.date);
 
             let meta = {
+              trend_cnt: 0,
+              recent_trend: 0,
+              total_trend: 0,
               curr_trend: result.curr_trend,
               init_trend: result.init_trend,
               segmentation: result.segmentation.length,
+              segmentation_mean: _.mean(result.segmentation.map((d) => d.avg)),
+              segmentation_avg:
+                result.segmentation.length > 0
+                  ? result.segmentation[result.segmentation.length - 1].avg
+                  : 0,
               upward_point: result.upward_point.length,
               downward_point: result.downward_point.length,
               insight: insight,
@@ -138,27 +146,35 @@ const collectFunc = async (code, days) => {
             result["meta"] = meta;
 
             if (prev_result) {
-              result["meta"]["last_resist_price"] = prev_result.meta.insight
-                .resist_price
-                ? prev_result.meta.insight.resist_price
-                : prev_result.meta.last_resist_price;
-              result["meta"]["last_support_price"] = prev_result.meta.insight
-                .support_price
-                ? prev_result.meta.insight.support_price
-                : prev_result.meta.last_support_price;
+              result.meta.trend_cnt = prev_result.meta.trend_cnt;
+              result.meta.total_trend = prev_result.meta.total_trend;
+              result.meta.recent_trend = prev_result.meta.recent_trend;
+              if (
+                prev_result.meta.curr_trend == result.meta.curr_trend &&
+                prev_result.meta.segmentation - result.meta.segmentation > 0
+              ) {
+                result.meta.recent_trend = result.meta.curr_trend > 0 ? +1 : -1;
+                if (prev_result.meta.recent_trend != result.meta.recent_trend) {
+                  result.meta.trend_cnt = 0;
+                }
+                result.meta.trend_cnt += result.meta.curr_trend > 0 ? +1 : -1;
+                result.meta.total_trend += result.meta.curr_trend > 0 ? +1 : -1;
+              }
 
               if (
-                (result.meta.last_resist_price +
-                  result.meta.last_support_price) /
-                  2 >=
-                  result.high &&
-                result.meta.last_support_price >=
-                  prev_result.meta.insight.future_support_price &&
-                prev_result.meta.insight.future_support_price &&
-                !result.meta.insight.future_support_price &&
-                !result.meta.insight.resist_price &&
-                (prev_result.meta.insight.future_resist_price ||
-                  result.meta.insight.future_resist_price)
+                (result.meta.recent_trend > 0 &&
+                  prev_result.meta.recent_trend < 0 &&
+                  result.meta.insight.resist <
+                    prev_result.meta.insight.resist) ||
+                (result.meta.recent_trend > 0 &&
+                  prev_result.meta.curr_trend < 0 &&
+                  result.meta.curr_trend > 0 &&
+                  result.meta.init_trend < 0 &&
+                  prev_result.meta.segmentation - result.meta.segmentation >
+                    0 &&
+                  prev_result.meta.segmentation > 3 &&
+                  result.meta.segmentation > 1 &&
+                  result.volume > result.meta.insight.cross_volume)
               ) {
                 row["marker"] = "매수";
                 let futures = all_data.slice(i + 1, i + 61);
@@ -178,6 +194,7 @@ const collectFunc = async (code, days) => {
             }
 
             row["meta"] = JSON.stringify(meta);
+            row["label"] = result.meta.trend_cnt;
             prev_result = result;
           } catch (error) {
             console.log(error);
@@ -298,7 +315,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "58 8,14,15 * * 1-5",
+    "50 9,12,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -433,12 +450,12 @@ module.exports = {
       var ret = {};
       origin_data
         .filter((d) => {
-          return d.result <= 102;
+          return d.result < 102;
         })
         .forEach((d) => {
           if (d.volume > 0) {
             d["meta"] = JSON.parse(d.meta);
-            var IsToday = moment(d.meta.date) >= moment().add("day", -7);
+            var IsToday = moment(d.meta.date) >= moment().add("day", -3);
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -487,12 +504,8 @@ module.exports = {
         var avg_count = 0;
         old_data.forEach((datum) => {
           datum["meta"] = JSON.parse(datum["meta"]);
-          if (datum.meta.insight.support_price) {
-            support_price += datum.meta.insight.support_price;
-            support_count++;
-          }
-          if (datum.meta.insight.future_support_price) {
-            support_price += datum.meta.insight.future_support_price;
+          if (datum.meta.segmentation_avg) {
+            support_price += datum.meta.segmentation_avg;
             support_count++;
           }
           avg_volume += datum["volume"];
@@ -517,36 +530,36 @@ module.exports = {
         );
         support_price = Math.abs(convertToHoga(support_price));
         var volume_buy =
-          Math.ceil(((prev_data.volume / avg_volume) * power) / 10) / 10;
+          Math.ceil(((curr_data.volume / avg_volume) * power) / 10) / 10;
         if (volume_buy > 5) {
           vases.logger.info(
             "[overflow volume] : " + code + "(" + volume_buy + ")"
           );
         }
 
+        var buyPrice = support_price;
+
         ret = {
           code: curr_data.code,
           close: curr_data.close,
           low: curr_data.low,
-          buy_price: support_price,
+          buy_price: curr_data.close,
           volume_buy: volume_buy > 5 ? 5 : volume_buy,
           water_buy:
+            power >= 90 &&
             suggest_data.close >= curr_data.close &&
-            curr_data.volume > 0 &&
-            ((curr_data.low <= support_price &&
-              support_price < curr_data.close) ||
-              (curr_data.low <= init_support_price &&
-                init_support_price < curr_data.close &&
-                support_count > 1))
+            curr_data.volume > prev_data.volume &&
+            prev_data.meta.recent_trend < 0 &&
+            curr_data.meta.recent_trend > 0 &&
+            curr_data.low < support_price &&
+            support_price <= curr_data.close
               ? true
               : false,
           init_buy: false,
           buy:
-            curr_data.volume / avg_volume >= 0.5 &&
-            curr_data.close - curr_data.low >
-              curr_data.high - curr_data.close &&
-            suggest_data.close >= curr_data.close &&
-            curr_data.volume > 0
+            prev_data.meta.recent_trend < 0 &&
+            curr_data.meta.recent_trend > 0 &&
+            prev_data.meta.insight.resist > curr_data.meta.insight.resist
               ? true
               : false,
         };
@@ -569,6 +582,74 @@ module.exports = {
       const stockData = new connector.types.StockData(connector.database);
       let origin_data = await stockData.select();
 
+      var success = [];
+      origin_data = origin_data.map(async (d) => {
+        let isSuccess = false;
+        d.meta = JSON.parse(d.meta);
+        stockData.table_name = "stock_data_" + d.code;
+
+        let future_data = await stockData
+          .getTable()
+          .andWhere("date", ">", d.date)
+          .orderBy("date", "desc");
+
+        if (future_data.length > 60) {
+          var buy_price;
+          let suggest_price = d.meta.segmentation_avg;
+          var prevData;
+          for (var i = 0; i < future_data.length; i++) {
+            var j = future_data[i];
+            j.meta = JSON.parse(j.meta);
+            suggest_price = (suggest_price + d.meta.segmentation_avg) / 2;
+
+            if (buy_price) {
+              const rate = (j.high / buy_price) * 100;
+
+              if (rate > 102) {
+                isSuccess = true;
+                success.push(true);
+                break;
+              }
+            }
+
+            if (
+              prevData &&
+              !buy_price &&
+              j.meta.recent_trend < 0 &&
+              prevData.meta.curr_trend < 0 &&
+              j.meta.curr_trend > 0 &&
+              j.volume > prevData.volume &&
+              suggest_price > j.low &&
+              suggest_price <= j.close
+            ) {
+              buy_price = suggest_price;
+            }
+
+            prevData = j;
+          }
+
+          if (!isSuccess && buy_price) {
+            console.log("fail");
+          }
+
+          if (isSuccess && buy_price) {
+            // console.log(success.length);
+          }
+        }
+
+        return isSuccess;
+      });
+
+      console.log(success.length, origin_data.length);
+
+      res.status(200).send({});
+    },
+    test2: async (req, res, next) => {
+      // 테스트 : 기간내 5프로 이상 수익 79프로 성공 확인
+      const rate = req.query.rate ? parseFloat(req.query.rate) : 105;
+      const stockData = new connector.types.StockData(connector.database);
+      let origin_data = await stockData.select();
+
       origin_data = origin_data.map((d) => {
         d.meta = JSON.parse(d.meta);
 
@@ -576,14 +657,14 @@ module.exports = {
       });
 
       var good_list = origin_data.filter((d) => d.result > rate);
-      var bad_list = origin_data.filter((d) => d.result > rate);
+      var bad_list = origin_data.filter((d) => d.result < rate);
 
       console.log(
         good_list.length,
         origin_data.filter((d) => d.result).length,
         _.mean(good_list.map((d) => d.result))
       );
-      res.status(200).send({});
+      res.status(200).send(bad_list);
     },
     favorite: async (req, res, next) => {
       const stockFavorite = new connector.types.StockFavorite(
@@ -601,12 +682,16 @@ module.exports = {
   post: {
     check: async (req, res, next) => {
       var ret = "대기";
+      let prev_result;
       try {
         var data = [];
         var insights = [];
 
-        for (var i = 0; i <= 99; i++) {
+        for (var i = 199; i >= 0; i--) {
           let result = {
+            trend_cnt: 0,
+            recent_trend: 0,
+            total_trend: 0,
             curr_trend: 0,
             init_trend: 0,
             segmentation: [],
@@ -634,99 +719,77 @@ module.exports = {
               result.init_trend
           );
           insights.push(insight);
-        }
 
-        let scaler = new dfd.StandardScaler();
-        let df = new dfd.DataFrame(data);
-
-        scaler.fit(df);
-        let df_enc = scaler.transform(df);
-        const test_data = [];
-
-        test_data.push({
-          data: df_enc.values,
-        });
-
-        const [best_mse] = tf.tidy(() => {
-          let dataTensor = tf.tensor2d(
-            test_data.map((item) => item.data),
-            [test_data.length, test_data[0].data.length]
-          );
-          let preds = best_model.predict(dataTensor, { batchSize: 1 });
-          return [tf.sub(preds, dataTensor).square().mean(1), preds];
-        });
-
-        let best_array = await best_mse.array();
-
-        let result_arr = test_data.map((d, idx) => {
-          return {
-            best: best_array[idx],
-          };
-        });
-
-        var goods = result_arr.filter((d) => d.best <= 0.89891517162323);
-
-        if (goods.length > 0) {
-          ret = "매수";
-          vases.logger.info(
-            "[trading_model] : " +
-              req.body.code +
-              "(" +
-              ret +
-              ") - " +
-              req.body.volume_buy
-          );
-        } else {
-          if (
-            isNaN(insights[0].future_resist_price) &&
-            !isNaN(insights[0].future_support_price)
-          ) {
-            ret = "매도";
-          } else if (
-            isNaN(insights[1].resist_price) &&
-            !isNaN(insights[0].resist_price) &&
-            !isNaN(insights[0].future_support_price)
-          ) {
-            ret = "매도";
-          } else if (
-            isNaN(insights[0].resist_price) &&
-            isNaN(insights[0].future_support_price) &&
-            !isNaN(insights[1].future_support_price)
-          ) {
-            ret = "매수";
-          } else if (
-            isNaN(insights[1].support_price) &&
-            !isNaN(insights[0].support_price) &&
-            isNaN(insights[0].future_support_price)
-          ) {
-            ret = "매수";
+          if (prev_result) {
+            result.trend_cnt = prev_result.trend_cnt;
+            result.total_trend = prev_result.total_trend;
+            result.recent_trend = prev_result.recent_trend;
+            if (
+              prev_result.curr_trend == result.curr_trend &&
+              prev_result.segmentation.length - result.segmentation.length > 0
+            ) {
+              result.recent_trend = result.curr_trend > 0 ? +1 : -1;
+              if (prev_result.recent_trend != result.recent_trend) {
+                result.trend_cnt = 0;
+              }
+              result.trend_cnt += result.curr_trend > 0 ? +1 : -1;
+              result.total_trend += result.curr_trend > 0 ? +1 : -1;
+            }
+            result["prev_trend"] = prev_result.recent_trend;
           }
+
+          prev_result = result;
+        }
+        if (
+          ((isNaN(insights[insights.length - 1].future_support_price) &&
+            !isNaN(insights[insights.length - 2].future_support_price)) ||
+            (isNaN(insights[insights.length - 2].future_support_price) &&
+              !isNaN(insights[insights.length - 1].future_support_price))) &&
+          !isNaN(insights[insights.length - 1].resist_price)
+        ) {
+          ret = "매도";
+        } else if (
+          result.prev_trend < 0 &&
+          prev_result.recent_trend > 0 &&
+          insights[insights.length - 1].resist <
+            insights[insights.length - 2].resist
+        ) {
+          ret = "매수";
         }
       } catch (error) {
         console.log(error);
       }
 
-      if (ret.includes("매수")) {
-        vases.logger.info(
-          "[trading] : " +
-            req.body.code +
-            "(" +
-            ret +
-            ") - " +
-            req.body.volume_buy
-        );
-      } else {
-        vases.logger.info(
-          "[trading] : " +
-            req.body.code +
-            "(" +
-            ret +
-            ") - " +
-            req.body.volume_buy
-        );
-      }
+      if (prev_result) {
+        if (ret.includes("매수")) {
+          vases.logger.info(
+            "[trading] : " +
+              req.body.code +
+              "(" +
+              ret +
+              ") - " +
+              prev_result.recent_trend +
+              " - " +
+              prev_result.trend_cnt
+          );
+        } else {
+          vases.logger.info(
+            "[trading] : " +
+              req.body.code +
+              "(" +
+              ret +
+              ") - " +
+              prev_result.recent_trend +
+              " - " +
+              prev_result.trend_cnt
+          );
+        }
 
-      res.status(200).send(ret);
+        res.status(200).send(ret + "/" + prev_result.trend_cnt);
+      } else {
+        console.log(req.body.code);
+        res.status(200).send(ret + "/" + 0);
+      }
     },
   },
 };
