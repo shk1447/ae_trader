@@ -87,6 +87,13 @@ const collectFunc = async (code, days) => {
 
         let prev_result;
         let prev_sell_signal;
+        let recent_data;
+        if (origin_data.length > 0) {
+          if (origin_data[origin_data.length - 1].meta) {
+            recent_data = origin_data[origin_data.length - 1];
+            recent_data.meta = JSON.parse(recent_data.meta);
+          }
+        }
 
         for (let i = all_data.length - data.length; i < all_data.length; i++) {
           let row = { ...all_data[i] };
@@ -119,9 +126,10 @@ const collectFunc = async (code, days) => {
             result.downward_point.sort((a, b) => a.date - b.date);
 
             let meta = {
-              trend_cnt: 0,
-              recent_trend: 0,
-              total_trend: 0,
+              attack_avg: recent_data ? recent_data.meta.attack_avg : 0,
+              trend_cnt: recent_data ? recent_data.meta.trend_cnt : 0,
+              recent_trend: recent_data ? recent_data.meta.recent_trend : 0,
+              total_trend: recent_data ? recent_data.meta.total_trend : 0,
               curr_trend: result.curr_trend,
               init_trend: result.init_trend,
               segmentation: result.segmentation.length,
@@ -146,6 +154,7 @@ const collectFunc = async (code, days) => {
             result["meta"] = meta;
 
             if (prev_result) {
+              result.meta.attack_avg = prev_result.meta.attack_avg;
               result.meta.trend_cnt = prev_result.meta.trend_cnt;
               result.meta.total_trend = prev_result.meta.total_trend;
               result.meta.recent_trend = prev_result.meta.recent_trend;
@@ -162,19 +171,14 @@ const collectFunc = async (code, days) => {
               }
 
               if (
-                (result.meta.recent_trend > 0 &&
-                  prev_result.meta.recent_trend < 0 &&
-                  result.meta.insight.resist <
-                    prev_result.meta.insight.resist) ||
-                (result.meta.recent_trend > 0 &&
-                  prev_result.meta.curr_trend < 0 &&
-                  result.meta.curr_trend > 0 &&
-                  result.meta.init_trend < 0 &&
-                  prev_result.meta.segmentation - result.meta.segmentation >
-                    0 &&
-                  prev_result.meta.segmentation > 3 &&
-                  result.meta.segmentation > 1 &&
-                  result.volume > result.meta.insight.cross_volume)
+                result.meta.recent_trend < 0 &&
+                prev_result.meta.curr_trend < 0 &&
+                result.meta.curr_trend > 0 &&
+                result.close > result.meta.segmentation_avg &&
+                prev_result.close < prev_result.meta.segmentation_avg &&
+                result.meta.insight.future_resist >
+                  prev_result.meta.insight.future_resist &&
+                result.volume > result.meta.insight.cross_volume
               ) {
                 row["marker"] = "매수";
                 let futures = all_data.slice(i + 1, i + 61);
@@ -191,6 +195,25 @@ const collectFunc = async (code, days) => {
 
                 recommended_rows.push(row);
               }
+
+              // if (
+              //   // result.meta.curr_trend > 0 &&
+              //   // ((!prev_result.meta.insight.support_price &&
+              //   //   insight.support_price) ||
+              //   //   (prev_result.meta.insight.resist_price &&
+              //   //     !insight.resist_price)) &&
+              //   // prev_result.meta.segmentation > 3 &&
+              //   // insight.support >= prev_result.meta.insight.resist &&
+              //   // !prev_result.meta.insight.future_support_price &&
+              //   // result.meta.insight.future_support_price
+              //   result.meta.recent_trend < 0 &&
+              //   prev_result.meta.curr_trend < 0 &&
+              //   result.meta.curr_trend > 0 &&
+              //   result.close > result.meta.segmentation_avg &&
+              //   prev_result.close < prev_result.meta.segmentation_avg
+              // ) {
+
+              // }
             }
 
             row["meta"] = JSON.stringify(meta);
@@ -338,6 +361,15 @@ if (cluster.isMaster) {
 
 module.exports = {
   get: {
+    clear: async (req, res, next) => {
+      const stockData = new connector.types.StockData(connector.database);
+      var date = moment().add(-21, "days").format("YYYY-MM-DD 00:00:00");
+      const today_unix = moment(date).unix() * 1000;
+
+      await stockData.getTable().where("date", ">=", today_unix).del();
+
+      res.status(200).send("OK");
+    },
     initialize: async (req, res, next) => {
       if (!collecting) {
         let stockList = await collector.getStockList();
@@ -435,7 +467,7 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(20);
+        .limit(10);
 
       let origin_data = await stockList
         .getTable()
@@ -455,7 +487,7 @@ module.exports = {
         .forEach((d) => {
           if (d.volume > 0) {
             d["meta"] = JSON.parse(d.meta);
-            var IsToday = moment(d.meta.date) >= moment().add("day", -3);
+            var IsToday = moment(d.meta.date) >= moment().add("day", -1);
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -605,7 +637,7 @@ module.exports = {
             if (buy_price) {
               const rate = (j.high / buy_price) * 100;
 
-              if (rate > 102) {
+              if (rate > 103) {
                 isSuccess = true;
                 success.push(true);
                 break;
@@ -615,14 +647,10 @@ module.exports = {
             if (
               prevData &&
               !buy_price &&
-              j.meta.recent_trend < 0 &&
-              prevData.meta.curr_trend < 0 &&
-              j.meta.curr_trend > 0 &&
-              j.volume > prevData.volume &&
-              suggest_price > j.low &&
-              suggest_price <= j.close
+              j.meta.recent_trend > 0 &&
+              prevData.meta.recent_trend < 0
             ) {
-              buy_price = suggest_price;
+              buy_price = j.close;
             }
 
             prevData = j;
@@ -633,7 +661,7 @@ module.exports = {
           }
 
           if (isSuccess && buy_price) {
-            // console.log(success.length);
+            console.log(success.length);
           }
         }
 
