@@ -280,7 +280,7 @@ const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 21;
+  const days = 41;
   const stockData = new connector.types.StockData(connector.database);
   var date = moment().format("YYYY-MM-DD 00:00:00");
   const today_unix = moment(date).unix() * 1000;
@@ -357,7 +357,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "50 9,12,15 * * 1-5",
+    "45 8,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -380,15 +380,6 @@ if (cluster.isMaster) {
 
 module.exports = {
   get: {
-    clear: async (req, res, next) => {
-      const stockData = new connector.types.StockData(connector.database);
-      var date = moment().add(-21, "days").format("YYYY-MM-DD 00:00:00");
-      const today_unix = moment(date).unix() * 1000;
-
-      await stockData.getTable().where("date", ">=", today_unix).del();
-
-      res.status(200).send("OK");
-    },
     initialize: async (req, res, next) => {
       if (!collecting) {
         let stockList = await collector.getStockList();
@@ -685,8 +676,7 @@ module.exports = {
           buy_price: curr_data.close,
           volume_buy: volume_buy > 5 ? 5 : volume_buy,
           water_buy:
-            power >= 100 &&
-            curr_data.volume > prev_data.volume &&
+            curr_data.volume > 0 &&
             curr_data.meta.recent_trend < 0 &&
             prev_data.meta.curr_trend < 0 &&
             curr_data.meta.curr_trend > 0 &&
@@ -696,7 +686,9 @@ module.exports = {
               : false,
           init_buy: false,
           buy:
-            prev_data.meta.recent_trend < 0 && curr_data.meta.recent_trend > 0
+            curr_data.volume > 0 &&
+            prev_data.meta.recent_trend < 0 &&
+            curr_data.meta.recent_trend > 0
               ? true
               : false,
         };
