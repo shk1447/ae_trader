@@ -11,6 +11,7 @@ const { segmentation } = require("../../modules/Analysis");
 const {
   IchimokuCloud,
   BollingerBands,
+  MFI,
   OBV,
   SMA,
 } = require("technicalindicators");
@@ -53,7 +54,7 @@ const collectFunc = async (code, days) => {
   return new Promise(async (resolve, reject) => {
     let stockList = await connector.dao.StockList.select(code);
 
-    stockList = _.shuffle(stockList);
+    // stockList = _.reverse(stockList);
 
     const progress_bar = new cliProgress.SingleBar(
       {},
@@ -71,10 +72,12 @@ const collectFunc = async (code, days) => {
 
         // const test_data = await stockData.getTable();
 
-        // if (test_data.length > 0) {
+        // if (test_data.length > 50) {
         //   progress_bar.update(step + 1);
         //   nextStep(step + 1);
         //   return;
+        // } else {
+        //   await stockData.truncate();
         // }
 
         let rows = [];
@@ -124,11 +127,8 @@ const collectFunc = async (code, days) => {
                 downward_point: [],
               };
 
-              analysis.segmentation(
-                [...all_data].splice(0, i + 1),
-                result,
-                "close"
-              );
+              var curr_data = [...all_data].splice(0, i + 1);
+              analysis.segmentation(curr_data, result, "close");
 
               let insight = analysis.cross_point(result, row, "close");
 
@@ -137,12 +137,13 @@ const collectFunc = async (code, days) => {
               result.downward_point.sort((a, b) => a.date - b.date);
 
               let meta = {
+                date: moment(row.date).format("YYYY-MM-DD"),
+                curr_trend: result.curr_trend,
+                init_trend: result.init_trend,
                 attack_avg: recent_data ? recent_data.meta.attack_avg : 0,
                 trend_cnt: recent_data ? recent_data.meta.trend_cnt : 0,
                 recent_trend: recent_data ? recent_data.meta.recent_trend : 0,
                 total_trend: recent_data ? recent_data.meta.total_trend : 0,
-                curr_trend: result.curr_trend,
-                init_trend: result.init_trend,
                 segmentation: result.segmentation.length,
                 segmentation_mean: _.mean(
                   result.segmentation.map((d) => d.avg)
@@ -153,8 +154,9 @@ const collectFunc = async (code, days) => {
                     : 0,
                 upward_point: result.upward_point.length,
                 downward_point: result.downward_point.length,
+                bb: null,
+                mfi: null,
                 insight: insight,
-                date: moment(row.date).format("YYYY-MM-DD"),
               };
 
               /*
@@ -167,10 +169,10 @@ const collectFunc = async (code, days) => {
               result["meta"] = meta;
 
               if (prev_result) {
-                result.meta.attack_avg = prev_result.meta.attack_avg;
                 result.meta.trend_cnt = prev_result.meta.trend_cnt;
                 result.meta.total_trend = prev_result.meta.total_trend;
                 result.meta.recent_trend = prev_result.meta.recent_trend;
+
                 if (
                   prev_result.meta.curr_trend == result.meta.curr_trend &&
                   prev_result.meta.segmentation - result.meta.segmentation > 0
@@ -187,15 +189,48 @@ const collectFunc = async (code, days) => {
                     result.meta.curr_trend > 0 ? +1 : -1;
                 }
 
+                var test = [...curr_data].splice(
+                  curr_data.length - 60,
+                  curr_data.length
+                );
+                if (test.length >= 60) {
+                  var mfi_input = {
+                    high: [],
+                    low: [],
+                    close: [],
+                    volume: [],
+                    period: 14,
+                  };
+                  var input = {
+                    period: 60,
+                    values: [],
+                    stdDev: 2,
+                  };
+                  test.forEach((d) => {
+                    input.values.push(d.close);
+                    mfi_input.high.push(d.high);
+                    mfi_input.low.push(d.low);
+                    mfi_input.close.push(d.close);
+                    mfi_input.volume.push(d.volume);
+                  });
+                  var bb = BollingerBands.calculate(input);
+                  result.meta.bb = bb[0];
+
+                  var mfi = MFI.calculate(mfi_input);
+                  result.meta.mfi = mfi[mfi.length - 1];
+                }
+
                 if (
                   result.meta.recent_trend < 0 &&
                   prev_result.meta.curr_trend < 0 &&
                   result.meta.curr_trend > 0 &&
+                  result.meta.bb &&
+                  result.meta.mfi &&
+                  result.meta.bb.lower > result.low &&
+                  result.meta.mfi < 20 &&
                   result.close > result.meta.segmentation_avg &&
                   prev_result.close < prev_result.meta.segmentation_avg &&
-                  result.meta.insight.future_resist >
-                    prev_result.meta.insight.future_resist &&
-                  result.volume > result.meta.insight.cross_volume
+                  result.volume > prev_result.volume
                 ) {
                   row["marker"] = "매수";
                   let futures = all_data.slice(i + 1, i + 61);
@@ -203,7 +238,7 @@ const collectFunc = async (code, days) => {
                     var max_point = [...futures].sort(
                       (a, b) => b.high - a.high
                     )[0];
-                    var high_rate = (max_point.high / row.close) * 100;
+                    var high_rate = (max_point.high / result.close) * 100;
 
                     row["result"] = high_rate;
                   } else {
@@ -498,7 +533,7 @@ module.exports = {
           let old_data = await stockData
             .getTable()
             .andWhere("date", ">", d.date)
-            .orderBy("date", "desc");
+            .orderBy("date", "asc");
 
           var notyet = true;
           var prev_datum;
@@ -518,7 +553,11 @@ module.exports = {
             prev_datum = datum;
           }
 
-          if (notyet) {
+          if (
+            notyet &&
+            old_data.length > 0 &&
+            old_data[old_data.length - 1].close <= d.close
+          ) {
             var IsToday = moment(d.meta.date) >= moment().add("day", -1);
             ret[d.code] = {
               Code: d.code,
@@ -621,31 +660,6 @@ module.exports = {
 
         stockData.table_name = "stock_data_" + code;
 
-        let old_data = await stockData
-          .getTable()
-          .andWhere("date", ">=", suggest_data.date)
-          .orderBy("date", "desc");
-
-        var support_count = 0;
-        var support_price = 0;
-        var avg_volume = 0;
-        var avg_count = 0;
-        var already = true;
-
-        for (var i = 0; i < old_data.length; i++) {
-          var datum = old_data[i];
-          datum["meta"] = JSON.parse(datum["meta"]);
-          if (datum.meta.segmentation_avg) {
-            support_price += datum.meta.segmentation_avg;
-            support_count++;
-          }
-          avg_volume += datum["volume"];
-          avg_count++;
-        }
-
-        support_price = support_price / support_count;
-        avg_volume = avg_volume / avg_count;
-
         await collectFunc({ stock_code: code }, 2);
 
         let data = await stockData.getTable().orderBy("date", "desc").limit(2);
@@ -656,32 +670,20 @@ module.exports = {
         let prev_data = data[data.length - 1];
         prev_data["meta"] = JSON.parse(prev_data["meta"]);
 
-        init_support_price = Math.abs(
-          convertToHoga((support_price + curr_data.close) / 2)
-        );
-        support_price = Math.abs(convertToHoga(support_price));
-        var volume_buy =
-          Math.ceil(((curr_data.volume / avg_volume) * power) / 10) / 10;
-        if (volume_buy > 5) {
-          vases.logger.info(
-            "[overflow volume] : " + code + "(" + volume_buy + ")"
-          );
-        }
-
-        var buyPrice = support_price;
         ret = {
           code: curr_data.code,
           close: curr_data.close,
           low: curr_data.low,
           buy_price: curr_data.close,
-          volume_buy: volume_buy > 5 ? 5 : volume_buy,
+          volume_buy: 0,
           water_buy:
             curr_data.volume > 0 &&
             curr_data.meta.recent_trend < 0 &&
             prev_data.meta.curr_trend < 0 &&
             curr_data.meta.curr_trend > 0 &&
             curr_data.close > curr_data.meta.segmentation_avg &&
-            prev_data.close < prev_data.meta.segmentation_avg
+            prev_data.close < prev_data.meta.segmentation_avg &&
+            curr_data.meta.bb.lower > curr_data.low
               ? true
               : false,
           init_buy: false,
@@ -871,38 +873,36 @@ module.exports = {
           prev_result = result;
         }
         if (
-          ((isNaN(insights[insights.length - 1].future_support_price) &&
-            !isNaN(insights[insights.length - 2].future_support_price)) ||
-            (isNaN(insights[insights.length - 2].future_support_price) &&
-              !isNaN(insights[insights.length - 1].future_support_price))) &&
+          isNaN(insights[insights.length - 2].future_support_price) &&
+          !isNaN(insights[insights.length - 1].future_support_price) &&
           !isNaN(insights[insights.length - 1].resist_price)
         ) {
           ret = "매도";
           vases.logger.info("[trading] : " + req.body.code + " 매도 발생!!");
+        } else if (
+          prev_result.recent_trend < 0 &&
+          prev_result.prev_trend > 0 &&
+          insights[insights.length - 1].support <
+            insights[insights.length - 1].resist
+        ) {
+          ret = "매도";
+          vases.logger.info(
+            "[trading] : " + req.body.code + "신규 매도 룰 발생!!"
+          );
         } else if (
           isNaN(insights[insights.length - 1].resist_price) &&
           isNaN(insights[insights.length - 1].future_support_price) &&
           !isNaN(insights[insights.length - 2].future_support_price)
         ) {
           ret = "매수";
-          vases.logger.info(
-            "[trading] : " + req.body.code + " 미래 룰 매수 발생!!"
-          );
-        } else if (
-          isNaN(insights[insights.length - 2].support_price) &&
-          !isNaN(insights[insights.length - 1].support_price) &&
-          isNaN(insights[insights.length - 1].future_support_price)
-        ) {
-          ret = "매수";
-          vases.logger.info(
-            "[trading] : " + req.body.code + " 현재 룰 매수 발생!!"
-          );
+          vases.logger.info("[trading] : " + req.body.code + " 매수 발생!!");
         } else if (
           prev_result.prev_trend < 0 &&
           prev_result.recent_trend > 0 &&
-          insights[insights.length - 1].resist <
-            insights[insights.length - 2].resist
+          insights[insights.length - 1].support >
+            insights[insights.length - 1].resist
         ) {
+          ret = "매수";
           vases.logger.info(
             "[trading] : " + req.body.code + " 신규 룰 매수 발생!!"
           );
