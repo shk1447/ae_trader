@@ -872,6 +872,19 @@ module.exports = {
           vases.logger.info(
             "[trading] : " + req.body.code + " 신규 룰 매수 발생!!"
           );
+        } else {
+          vases.logger.info(
+            "[trading] : " +
+              req.body.code +
+              " 대기" +
+              prev_result.prev_trend +
+              "/" +
+              prev_result.recent_trend +
+              "/" +
+              insights[insights.length - 1].support +
+              "/" +
+              insights[insights.length - 1].resist
+          );
         }
       } catch (error) {
         console.log(error);
