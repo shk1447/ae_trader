@@ -54,7 +54,7 @@ const collectFunc = async (code, days) => {
   return new Promise(async (resolve, reject) => {
     let stockList = await connector.dao.StockList.select(code);
 
-    // stockList = _.reverse(stockList);
+    stockList = _.shuffle(stockList);
 
     const progress_bar = new cliProgress.SingleBar(
       {},
@@ -154,8 +154,6 @@ const collectFunc = async (code, days) => {
                     : 0,
                 upward_point: result.upward_point.length,
                 downward_point: result.downward_point.length,
-                bb: null,
-                mfi: null,
                 insight: insight,
               };
 
@@ -184,53 +182,23 @@ const collectFunc = async (code, days) => {
                   ) {
                     result.meta.trend_cnt = 0;
                   }
+                  if (result.meta.mfi) result.meta.prev_mfi = result.meta.mfi;
                   result.meta.trend_cnt += result.meta.curr_trend > 0 ? +1 : -1;
                   result.meta.total_trend +=
                     result.meta.curr_trend > 0 ? +1 : -1;
-                }
-
-                var test = [...curr_data].splice(
-                  curr_data.length - 60,
-                  curr_data.length
-                );
-                if (test.length >= 60) {
-                  var mfi_input = {
-                    high: [],
-                    low: [],
-                    close: [],
-                    volume: [],
-                    period: 14,
-                  };
-                  var input = {
-                    period: 60,
-                    values: [],
-                    stdDev: 2,
-                  };
-                  test.forEach((d) => {
-                    input.values.push(d.close);
-                    mfi_input.high.push(d.high);
-                    mfi_input.low.push(d.low);
-                    mfi_input.close.push(d.close);
-                    mfi_input.volume.push(d.volume);
-                  });
-                  var bb = BollingerBands.calculate(input);
-                  result.meta.bb = bb[0];
-
-                  var mfi = MFI.calculate(mfi_input);
-                  result.meta.mfi = mfi[mfi.length - 1];
                 }
 
                 if (
                   result.meta.recent_trend < 0 &&
                   prev_result.meta.curr_trend < 0 &&
                   result.meta.curr_trend > 0 &&
-                  result.meta.bb &&
-                  result.meta.mfi &&
-                  result.meta.bb.lower > result.low &&
-                  result.meta.mfi < 20 &&
-                  result.close > result.meta.segmentation_avg &&
-                  prev_result.close < prev_result.meta.segmentation_avg &&
-                  result.volume > prev_result.volume
+                  ((!prev_result.meta.insight.support_price &&
+                    insight.support_price) ||
+                    (prev_result.meta.insight.resist_price &&
+                      !insight.resist_price)) &&
+                  insight.support >= prev_result.meta.insight.resist &&
+                  insight.support + insight.resist >=
+                    insight.future_support + insight.future_resist
                 ) {
                   row["marker"] = "매수";
                   let futures = all_data.slice(i + 1, i + 61);
@@ -315,7 +283,7 @@ const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 41;
+  const days = 5;
   const stockData = new connector.types.StockData(connector.database);
   var date = moment().format("YYYY-MM-DD 00:00:00");
   const today_unix = moment(date).unix() * 1000;
@@ -392,7 +360,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "45 8,15 * * 1-5",
+    "51 8-15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -682,8 +650,7 @@ module.exports = {
             prev_data.meta.curr_trend < 0 &&
             curr_data.meta.curr_trend > 0 &&
             curr_data.close > curr_data.meta.segmentation_avg &&
-            prev_data.close < prev_data.meta.segmentation_avg &&
-            curr_data.meta.bb.lower > curr_data.low
+            prev_data.close < prev_data.meta.segmentation_avg
               ? true
               : false,
           init_buy: false,
@@ -881,8 +848,7 @@ module.exports = {
           vases.logger.info("[trading] : " + req.body.code + " 매도 발생!!");
         } else if (
           prev_result.recent_trend < 0 &&
-          prev_result.prev_trend > 0 &&
-          insights[insights.length - 1].support <
+          insights[insights.length - 2].resist <
             insights[insights.length - 1].resist
         ) {
           ret = "매도";
