@@ -855,11 +855,10 @@ module.exports = {
             "[trading] : " + req.body.code + "신규 매도 룰 발생!!"
           );
         } else if (
-          (prev_result.prev_trend < 0 &&
-            prev_result.recent_trend > 0 &&
-            insights[insights.length - 1].support >
-              insights[insights.length - 1].resist) ||
-          (prev_result.recent_trend > 0 &&
+          prev_result.prev_trend < 0 &&
+          prev_result.recent_trend > 0 &&
+          (insights[insights.length - 1].support >
+            insights[insights.length - 1].resist ||
             insights[insights.length - 2].support <
               insights[insights.length - 1].support)
         ) {
