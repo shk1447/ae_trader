@@ -360,7 +360,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "51 8-15 * * 1-5",
+    "51 8,9,14,15 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -840,33 +840,28 @@ module.exports = {
           prev_result = result;
         }
         if (
-          isNaN(insights[insights.length - 2].future_support_price) &&
-          !isNaN(insights[insights.length - 1].future_support_price) &&
-          !isNaN(insights[insights.length - 1].resist_price)
-        ) {
-          ret = "매도";
-          vases.logger.info("[trading] : " + req.body.code + " 매도 발생!!");
-        } else if (
-          prev_result.recent_trend < 0 &&
-          insights[insights.length - 2].resist <
-            insights[insights.length - 1].resist
+          (prev_result.prev_trend > 0 &&
+            prev_result.recent_trend < 0 &&
+            !(
+              insights[insights.length - 1].support >
+              insights[insights.length - 1].resist
+            )) ||
+          (prev_result.recent_trend < 0 &&
+            insights[insights.length - 2].resist <
+              insights[insights.length - 1].resist)
         ) {
           ret = "매도";
           vases.logger.info(
             "[trading] : " + req.body.code + "신규 매도 룰 발생!!"
           );
         } else if (
-          isNaN(insights[insights.length - 1].resist_price) &&
-          isNaN(insights[insights.length - 1].future_support_price) &&
-          !isNaN(insights[insights.length - 2].future_support_price)
-        ) {
-          ret = "매수";
-          vases.logger.info("[trading] : " + req.body.code + " 매수 발생!!");
-        } else if (
-          prev_result.prev_trend < 0 &&
-          prev_result.recent_trend > 0 &&
-          insights[insights.length - 1].support >
-            insights[insights.length - 1].resist
+          (prev_result.prev_trend < 0 &&
+            prev_result.recent_trend > 0 &&
+            insights[insights.length - 1].support >
+              insights[insights.length - 1].resist) ||
+          (prev_result.recent_trend > 0 &&
+            insights[insights.length - 2].support <
+              insights[insights.length - 1].support)
         ) {
           ret = "매수";
           vases.logger.info(
