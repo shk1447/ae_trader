@@ -279,6 +279,20 @@ const collectFunc = async (code, days) => {
   });
 };
 
+const collect_job_func2 = async () => {
+  // const data = new connector.types.StockData(connector.database);
+  // await data.truncate();
+  const code = {};
+  const days = 40;
+  const stockData = new connector.types.StockData(connector.database);
+  var date = moment().format("YYYY-MM-DD 00:00:00");
+  const today_unix = moment(date).unix() * 1000;
+
+  await stockData.getTable().where({ date: today_unix }).del();
+
+  await collectFunc(code, days);
+};
+
 const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
@@ -360,8 +374,17 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "51 8,9,14,15 * * 1-5",
+    "51 8,14 * * 1-5",
     collect_job_func,
+    null,
+    false,
+    "Asia/Seoul"
+  );
+  collect_job.start();
+
+  var collect_job = new CronJob(
+    "10 16 * * 1-5",
+    collect_job_func2,
     null,
     false,
     "Asia/Seoul"
@@ -646,18 +669,16 @@ module.exports = {
           volume_buy: 0,
           water_buy:
             curr_data.volume > 0 &&
-            curr_data.meta.recent_trend < 0 &&
-            prev_data.meta.curr_trend < 0 &&
-            curr_data.meta.curr_trend > 0 &&
-            curr_data.close > curr_data.meta.segmentation_avg &&
-            prev_data.close < prev_data.meta.segmentation_avg
+            prev_data.meta.recent_trend < 0 &&
+            curr_data.meta.recent_trend > 0
               ? true
               : false,
           init_buy: false,
           buy:
             curr_data.volume > 0 &&
-            prev_data.meta.recent_trend < 0 &&
-            curr_data.meta.recent_trend > 0
+            curr_data.meta.recent_trend < 0 &&
+            prev_data.meta.curr_trend < 0 &&
+            curr_data.meta.curr_trend > 0
               ? true
               : false,
         };
@@ -786,7 +807,7 @@ module.exports = {
         var data = [];
         var insights = [];
 
-        for (var i = 99; i >= 0; i--) {
+        for (var i = 390; i >= 0; i--) {
           let result = {
             trend_cnt: 0,
             recent_trend: 0,
@@ -835,49 +856,65 @@ module.exports = {
               result.total_trend += result.curr_trend > 0 ? +1 : -1;
             }
             result["prev_trend"] = prev_result.recent_trend;
+            result["prev_curr_trend"] = prev_result.curr_trend;
           }
 
           prev_result = result;
         }
         if (
-          (prev_result.prev_trend > 0 &&
-            prev_result.recent_trend < 0 &&
-            !(
-              insights[insights.length - 1].support >
-              insights[insights.length - 1].resist
-            )) ||
-          (prev_result.recent_trend < 0 &&
-            insights[insights.length - 2].resist <
-              insights[insights.length - 1].resist)
+          insights[insights.length - 2].resist <
+            insights[insights.length - 1].resist &&
+          insights[insights.length - 1].future_support >
+            insights[insights.length - 1].future_resist
         ) {
           ret = "매도";
           vases.logger.info(
-            "[trading] : " + req.body.code + "신규 매도 룰 발생!!"
+            "[trading] : " +
+              req.body.code +
+              "신규 매도 룰 발생!! " +
+              insights[insights.length - 1].support +
+              "/" +
+              insights[insights.length - 1].resist +
+              "/" +
+              insights[insights.length - 1].future_resist +
+              "/" +
+              insights[insights.length - 1].future_support
           );
         } else if (
-          prev_result.prev_trend < 0 &&
-          prev_result.recent_trend > 0 &&
-          (insights[insights.length - 1].support >
-            insights[insights.length - 1].resist ||
-            insights[insights.length - 2].support <
-              insights[insights.length - 1].support)
+          insights[insights.length - 2].support <=
+            insights[insights.length - 2].resist &&
+          insights[insights.length - 1].support >
+            insights[insights.length - 1].resist
         ) {
           ret = "매수";
           vases.logger.info(
-            "[trading] : " + req.body.code + " 신규 룰 매수 발생!!"
+            "[trading] : " +
+              req.body.code +
+              " 신규 룰 매수 발생!! " +
+              insights[insights.length - 1].support +
+              "/" +
+              insights[insights.length - 1].resist +
+              "/" +
+              insights[insights.length - 1].future_resist +
+              "/" +
+              insights[insights.length - 1].future_support
           );
         } else {
           vases.logger.info(
             "[trading] : " +
               req.body.code +
-              " 대기" +
-              prev_result.prev_trend +
-              "/" +
+              " 대기 " +
               prev_result.recent_trend +
+              "/" +
+              prev_result.curr_trend +
               "/" +
               insights[insights.length - 1].support +
               "/" +
-              insights[insights.length - 1].resist
+              insights[insights.length - 1].resist +
+              "/" +
+              insights[insights.length - 1].future_resist +
+              "/" +
+              insights[insights.length - 1].future_support
           );
         }
       } catch (error) {
