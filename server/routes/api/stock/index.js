@@ -382,14 +382,14 @@ if (cluster.isMaster) {
   );
   collect_job.start();
 
-  var collect_job = new CronJob(
-    "10 16 * * 1-5",
+  var collect_job2 = new CronJob(
+    "25 16 * * 1-5",
     collect_job_func2,
     null,
     false,
     "Asia/Seoul"
   );
-  collect_job.start();
+  collect_job2.start();
 
   // var publish_job = new CronJob(
   //   "*/1 9-15 * * *",
@@ -668,7 +668,8 @@ module.exports = {
           buy_price: curr_data.close,
           volume_buy: 0,
           water_buy:
-            curr_data.volume > 0 &&
+            power >= 100 &&
+            curr_data.volume > prev_data.volume / 2 &&
             prev_data.meta.recent_trend < 0 &&
             curr_data.meta.recent_trend > 0
               ? true
@@ -678,7 +679,11 @@ module.exports = {
             curr_data.volume > 0 &&
             curr_data.meta.recent_trend < 0 &&
             prev_data.meta.curr_trend < 0 &&
-            curr_data.meta.curr_trend > 0
+            curr_data.meta.curr_trend > 0 &&
+            prev_data.meta.segmentation_mean > prev_data.low &&
+            prev_data.meta.segmentation_mean >
+              prev_data.meta.segmentation_avg &&
+            curr_data.meta.insight.support >= prev_data.meta.insight.resist
               ? true
               : false,
         };
@@ -862,42 +867,46 @@ module.exports = {
           prev_result = result;
         }
         if (
-          insights[insights.length - 2].resist <
-            insights[insights.length - 1].resist &&
-          insights[insights.length - 1].future_support >
-            insights[insights.length - 1].future_resist
+          (insights[insights.length - 3].resist <
+            insights[insights.length - 2].resist &&
+            insights[insights.length - 2].future_support >
+              insights[insights.length - 2].future_resist) ||
+          (insights[insights.length - 3].future_support <=
+            insights[insights.length - 3].future_resist &&
+            insights[insights.length - 2].future_support >
+              insights[insights.length - 2].future_resist)
         ) {
           ret = "매도";
           vases.logger.info(
             "[trading] : " +
               req.body.code +
               "신규 매도 룰 발생!! " +
-              insights[insights.length - 1].support +
+              insights[insights.length - 2].support +
               "/" +
-              insights[insights.length - 1].resist +
+              insights[insights.length - 2].resist +
               "/" +
-              insights[insights.length - 1].future_resist +
+              insights[insights.length - 2].future_resist +
               "/" +
-              insights[insights.length - 1].future_support
+              insights[insights.length - 2].future_support
           );
         } else if (
-          insights[insights.length - 2].support <=
-            insights[insights.length - 2].resist &&
-          insights[insights.length - 1].support >
-            insights[insights.length - 1].resist
+          insights[insights.length - 3].support <=
+            insights[insights.length - 3].resist &&
+          insights[insights.length - 2].support >
+            insights[insights.length - 2].resist
         ) {
           ret = "매수";
           vases.logger.info(
             "[trading] : " +
               req.body.code +
               " 신규 룰 매수 발생!! " +
-              insights[insights.length - 1].support +
+              insights[insights.length - 2].support +
               "/" +
-              insights[insights.length - 1].resist +
+              insights[insights.length - 2].resist +
               "/" +
-              insights[insights.length - 1].future_resist +
+              insights[insights.length - 2].future_resist +
               "/" +
-              insights[insights.length - 1].future_support
+              insights[insights.length - 2].future_support
           );
         } else {
           vases.logger.info(
@@ -908,13 +917,13 @@ module.exports = {
               "/" +
               prev_result.curr_trend +
               "/" +
-              insights[insights.length - 1].support +
+              insights[insights.length - 2].support +
               "/" +
-              insights[insights.length - 1].resist +
+              insights[insights.length - 2].resist +
               "/" +
-              insights[insights.length - 1].future_resist +
+              insights[insights.length - 2].future_resist +
               "/" +
-              insights[insights.length - 1].future_support
+              insights[insights.length - 2].future_support
           );
         }
       } catch (error) {
