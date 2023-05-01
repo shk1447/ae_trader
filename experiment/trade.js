@@ -9,8 +9,10 @@ let list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
 
+const mean = _.mean(list.filter((d) => d.Rate > 4).map((d) => d.Rate));
+console.log(mean);
 list = list.filter((s) => {
-  return s.Rate > 3;
+  return s.Rate > mean;
 });
 
 console.log(list.length);
@@ -71,11 +73,11 @@ database({
           return (
             (k.meta.insight.support -
               k.meta.insight.resist +
-              k.meta.upward_point +
-              k.meta.downward_point +
-              k.meta.segmentation) *
+              k.meta.insight.future_resist -
+              k.meta.insight.future_support) *
             k.meta.curr_trend *
-            k.meta.init_trend
+            k.meta.recent_trend *
+            (k.meta.mfi / 100)
           );
         })
       );
@@ -116,11 +118,11 @@ database({
         return (
           (k.meta.insight.support -
             k.meta.insight.resist +
-            k.meta.upward_point +
-            k.meta.downward_point +
-            k.meta.segmentation) *
+            k.meta.insight.future_resist -
+            k.meta.insight.future_support) *
           k.meta.curr_trend *
-          k.meta.init_trend
+          k.meta.recent_trend *
+          (k.meta.mfi / 100)
         );
       })
     );

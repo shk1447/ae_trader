@@ -17,7 +17,7 @@ database({
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
-  const oldDate = moment().add(-133, "days");
+  const oldDate = moment().add(-1, "days");
   const list = await knex.raw(`SELECT * FROM stock_list`);
   // const list = await knex.raw(
   //   `SELECT * FROM stock_data WHERE marker = '매수' AND date >= ${
@@ -40,20 +40,20 @@ database({
       moment(dd[0].date).format("YYYY-MM-DD") == oldDate.format("YYYY-MM-DD")
     ) {
       let scaler = new dfd.StandardScaler();
-      let df = new dfd.DataFrame(
-        dd.map((k) => {
-          k.meta = JSON.parse(k.meta);
-          return (
-            (k.meta.insight.support -
-              k.meta.insight.resist +
-              k.meta.upward_point +
-              k.meta.downward_point +
-              k.meta.segmentation) *
-            k.meta.curr_trend *
-            k.meta.init_trend
-          );
-        })
-      );
+      const cc = dd.map((k) => {
+        k.meta = JSON.parse(k.meta);
+        return (
+          (k.meta.insight.support -
+            k.meta.insight.resist +
+            k.meta.insight.future_resist -
+            k.meta.insight.future_support) *
+          k.meta.curr_trend *
+          k.meta.recent_trend *
+          (k.meta.mfi / 100)
+        );
+      });
+      console.log(cc.length);
+      let df = new dfd.DataFrame(cc);
       scaler.fit(df);
       let df_enc = scaler.transform(df);
       if (dd.length == 100) {
@@ -87,12 +87,17 @@ database({
         code: d.code,
         best: best_array[idx],
         date: d.date,
-        buy: !d.meta.insight.resist < d.meta.insight.support,
+        meta: d.meta,
+        prev_meta: d.prev_meta,
       };
     });
+    console.log(result_arr);
 
     var aa = result_arr.filter(
-      (d) => d.best <= 0.9416545629501343
+      (d) =>
+        d.best < 0.9783730506896973 &&
+        d.prev_meta.insight.support == 0 &&
+        d.meta.insight.support > 0
       // &&
       // d.buy &&
       // !d.meta.future_support_price &&
@@ -107,13 +112,20 @@ database({
       d.meta.future_resist_price &&
   
     */
+    // const c = _.groupBy(
+    //   aa.map((d) => {
+    //     d.best = Math.floor(d.best * 1000) / 1000;
+    //     return d;
+    //   }),
+    //   "best"
+    // );
 
     console.log(
       aa
         .sort((a, b) => a.best - b.best)
         .map((item) => {
           // delete item.meta;
-          return item;
+          return { code: item.code, date: item.date, best: item.best };
         })
     );
     console.log(aa.length);

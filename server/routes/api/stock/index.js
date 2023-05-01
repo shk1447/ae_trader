@@ -7,6 +7,9 @@ const moment = require("moment");
 
 const cluster = require("cluster");
 
+const tf = require("@tensorflow/tfjs");
+const dfd = require("danfojs");
+
 const { segmentation } = require("../../modules/Analysis");
 const {
   IchimokuCloud,
@@ -41,16 +44,11 @@ const convertToHoga = (price) => {
   return hoga_price;
 };
 
-// const model_path = path.resolve(
-//   process.env.root_path,
-//   "../experiment/ae_model/model.json"
-// );
-// let best_model;
-// tf.loadLayersModel("file://" + model_path).then((model) => {
-//   best_model = model;
-// });
-
 const collectFunc = async (code, days) => {
+  const best_model = await tf.loadLayersModel(
+    "http://localhost:8081/new_ae_model/model.json"
+  );
+
   return new Promise(async (resolve, reject) => {
     let stockList = await connector.dao.StockList.select(code);
 
@@ -102,6 +100,9 @@ const collectFunc = async (code, days) => {
           if (origin_data.length > 0) {
             if (origin_data[origin_data.length - 1].meta) {
               recent_data = origin_data[origin_data.length - 1];
+            }
+            if (all_data.length - data.length > 0) {
+              prev_result = { ...all_data[all_data.length - data.length - 1] };
             }
           }
 
@@ -155,7 +156,26 @@ const collectFunc = async (code, days) => {
                 upward_point: result.upward_point.length,
                 downward_point: result.downward_point.length,
                 insight: insight,
+                mfi: 0,
               };
+
+              if (curr_data.length > 20) {
+                var input = {
+                  high: [],
+                  low: [],
+                  close: [],
+                  volume: [],
+                  period: 20,
+                };
+                [...curr_data].splice(i - 21, i + 1).forEach((d) => {
+                  input.high.push(d.high);
+                  input.low.push(d.low);
+                  input.close.push(d.close);
+                  input.volume.push(d.volume);
+                });
+                let mfi = new MFI(input);
+                meta.mfi = mfi.result[0];
+              }
 
               /*
               spanA > spanB 양운
@@ -164,12 +184,106 @@ const collectFunc = async (code, days) => {
               base 기준선
             */
 
+              // console.log(curr_data.length);
+              if (curr_data.length > 100) {
+                let scaler = new dfd.StandardScaler();
+
+                const aa = curr_data.slice(
+                  curr_data.length - 100,
+                  curr_data.length
+                );
+
+                const dataset = aa.sort((a, b) => b.date - a.date);
+                dataset[0]["meta"] = meta;
+                const bb = dataset.map((k) => {
+                  return (
+                    (k.meta.insight.support -
+                      k.meta.insight.resist +
+                      k.meta.upward_point +
+                      k.meta.downward_point) *
+                    k.meta.curr_trend *
+                    k.meta.init_trend *
+                    (k.meta.mfi / 100)
+                  );
+                });
+
+                let df = new dfd.Series(bb);
+                scaler.fit(df);
+                let df_enc = scaler.transform(df);
+                const test_data = [];
+                if (dataset.length == 100) {
+                  test_data.push({
+                    code: item.stock_code,
+                    data: df_enc.values,
+                    meta: dataset[0].meta,
+                    prev_meta: dataset[1].meta,
+                  });
+
+                  const [best_mse] = tf.tidy(() => {
+                    let dataTensor = tf.tensor2d(
+                      test_data.map((item) => item.data),
+                      [test_data.length, test_data[0].data.length]
+                    );
+                    let preds = best_model.predict(dataTensor, {
+                      batchSize: 1,
+                    });
+                    return [tf.sub(preds, dataTensor).square().mean(1), preds];
+                  });
+
+                  let best_array = await best_mse.array();
+
+                  let result_arr = test_data.map((d, idx) => {
+                    return {
+                      code: d.code,
+                      best: best_array[idx],
+                      buy:
+                        d.prev_meta.recent_trend < 0 &&
+                        d.meta.insight.support > 0 &&
+                        d.prev_meta.insight.support == 0 &&
+                        d.meta.insight.future_resist >=
+                          d.meta.insight.future_support,
+                    };
+                  });
+
+                  // if (result_arr.length > 0) {
+                  //   row["label"] = result_arr[0].best;
+                  // }
+
+                  var goods = result_arr.filter(
+                    (d) => d.best <= 0.9783730506896973 && d.buy
+                  );
+
+                  if (goods.length > 0) {
+                    row["marker"] = "AI매수";
+
+                    let futures = all_data.slice(i + 1, i + 61);
+                    if (futures.length > 0) {
+                      var max_point = [...futures].sort(
+                        (a, b) => b.high - a.high
+                      )[0];
+                      var high_rate = (max_point.high / row.close) * 100;
+
+                      row["result"] = high_rate;
+                    } else {
+                      row["result"] = 100;
+                    }
+
+                    recommended_rows.push(row);
+                  }
+                }
+              }
+
               result["meta"] = meta;
+              all_data[i]["meta"] = meta;
 
               if (prev_result) {
                 result.meta.trend_cnt = prev_result.meta.trend_cnt;
                 result.meta.total_trend = prev_result.meta.total_trend;
                 result.meta.recent_trend = prev_result.meta.recent_trend;
+                result.meta.prev_mfi = prev_result.meta.mfi;
+                result.meta.step_mfi = prev_result.meta.step_mfi;
+                result.meta.prev_segmentation_mean =
+                  prev_result.meta.segmentation_mean;
 
                 if (
                   prev_result.meta.curr_trend == result.meta.curr_trend &&
@@ -182,24 +296,29 @@ const collectFunc = async (code, days) => {
                   ) {
                     result.meta.trend_cnt = 0;
                   }
-                  if (result.meta.mfi) result.meta.prev_mfi = result.meta.mfi;
+                  if (result.meta.mfi) {
+                    result.meta.step_mfi = result.meta.mfi;
+                  }
                   result.meta.trend_cnt += result.meta.curr_trend > 0 ? +1 : -1;
                   result.meta.total_trend +=
                     result.meta.curr_trend > 0 ? +1 : -1;
                 }
 
-                if (
+                var condition01 =
                   result.meta.recent_trend < 0 &&
                   prev_result.meta.curr_trend < 0 &&
                   result.meta.curr_trend > 0 &&
-                  ((!prev_result.meta.insight.support_price &&
-                    insight.support_price) ||
-                    (prev_result.meta.insight.resist_price &&
-                      !insight.resist_price)) &&
-                  insight.support >= prev_result.meta.insight.resist &&
-                  insight.support + insight.resist >=
-                    insight.future_support + insight.future_resist
-                ) {
+                  prev_result.meta.prev_mfi > prev_result.meta.mfi &&
+                  result.meta.prev_mfi < result.meta.mfi &&
+                  prev_result.meta.insight.support <=
+                    prev_result.meta.insight.resist &&
+                  result.meta.insight.support > result.meta.insight.resist &&
+                  (prev_result.meta.insight.future_support >
+                    result.meta.insight.future_support ||
+                    prev_result.meta.insight.future_resist <
+                      result.meta.insight.future_resist);
+
+                if (condition01) {
                   row["marker"] = "매수";
                   let futures = all_data.slice(i + 1, i + 61);
                   if (futures.length > 0) {
@@ -283,12 +402,17 @@ const collect_job_func2 = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 40;
-  const stockData = new connector.types.StockData(connector.database);
-  var date = moment().format("YYYY-MM-DD 00:00:00");
-  const today_unix = moment(date).unix() * 1000;
+  const days = 49;
+  // const stockData = new connector.types.StockData(connector.database);
+  // var date = moment().add(-40, "days").format("YYYY-MM-DD 00:00:00");
+  // const today_unix = moment(date).unix() * 1000;
 
-  await stockData.getTable().where({ date: today_unix }).del();
+  // await stockData.getTable().where("date", ">=", today_unix).del();
+
+  // var date = moment().format("YYYY-MM-DD 00:00:00");
+  // const today_unix = moment(date).unix() * 1000;
+
+  // await stockData.getTable().where({ date: today_unix }).del();
 
   await collectFunc(code, days);
 };
@@ -297,7 +421,7 @@ const collect_job_func = async () => {
   // const data = new connector.types.StockData(connector.database);
   // await data.truncate();
   const code = {};
-  const days = 5;
+  const days = 2;
   const stockData = new connector.types.StockData(connector.database);
   var date = moment().format("YYYY-MM-DD 00:00:00");
   const today_unix = moment(date).unix() * 1000;
@@ -374,7 +498,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "51 8,14 * * 1-5",
+    "40 8,14 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -383,7 +507,7 @@ if (cluster.isMaster) {
   collect_job.start();
 
   var collect_job2 = new CronJob(
-    "25 16 * * 1-5",
+    "45 16 * * 1-5",
     collect_job_func2,
     null,
     false,
@@ -513,9 +637,12 @@ module.exports = {
             .andWhere("date", ">=", dates[dates.length - 1].date)
             .orderBy("date", "desc");
         })
-        .groupBy("code");
+        .groupBy("code")
+        .orderBy("volume", "desc");
 
       var ret = {};
+      var count = 0;
+      console.log(origin_data.length);
       for (var i = 0; i < origin_data.length; i++) {
         var d = origin_data[i];
         d["meta"] = JSON.parse(d.meta);
@@ -524,32 +651,33 @@ module.exports = {
           let old_data = await stockData
             .getTable()
             .andWhere("date", ">", d.date)
-            .orderBy("date", "asc");
+            .orderBy("date", "desc");
 
           var notyet = true;
+          var reach = false;
           var prev_datum;
           for (var j = 0; j < old_data.length; j++) {
             var datum = old_data[j];
             datum["meta"] = JSON.parse(datum.meta);
+
             if (prev_datum) {
               if (
+                notyet &&
                 prev_datum.meta.recent_trend < 0 &&
                 datum.meta.recent_trend > 0
               ) {
                 // already buy
                 notyet = false;
-                break;
               }
+            }
+
+            if (!reach && datum.high / d.close > 1.02) {
+              reach = true;
             }
             prev_datum = datum;
           }
 
-          if (
-            notyet &&
-            old_data.length > 0 &&
-            old_data[old_data.length - 1].close <= d.close
-          ) {
-            var IsToday = moment(d.meta.date) >= moment().add("day", -1);
+          if (old_data.length >= 0 && (!reach || notyet)) {
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -559,8 +687,10 @@ module.exports = {
               TradePower: 0,
               IsBuy: false,
               Date: d.meta.date,
-              IsToday: IsToday,
+              Type: d.marker,
+              IsToday: old_data.length <= 0,
             };
+            count++;
           }
         }
       }
@@ -574,7 +704,7 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(60);
+        .limit(40);
 
       let origin_data = await stockList
         .getTable()
@@ -584,45 +714,60 @@ module.exports = {
             .andWhere("date", ">=", dates[dates.length - 1].date)
             .orderBy("date", "desc");
         })
-        .groupBy("code");
+        .groupBy("code")
+        .orderBy("volume", "desc");
 
       var ret = {};
-
+      var count = 0;
+      console.log(origin_data.length);
       for (var i = 0; i < origin_data.length; i++) {
         var d = origin_data[i];
         d["meta"] = JSON.parse(d.meta);
         if (d.volume > 0) {
           stockData.table_name = "stock_data_" + d.code;
-          await collectFunc({ stock_code: d.code }, 2);
           let old_data = await stockData
             .getTable()
             .andWhere("date", ">", d.date)
             .orderBy("date", "desc");
 
-          var notyet = true;
+          var notyet = false;
+          var reach = true;
           var prev_datum;
           for (var j = 0; j < old_data.length; j++) {
             var datum = old_data[j];
             datum["meta"] = JSON.parse(datum.meta);
-            if (prev_datum) {
-              if (
-                prev_datum.meta.recent_trend < 0 &&
-                datum.meta.recent_trend > 0
-              ) {
-                // already buy
-                notyet = false;
-                break;
-              }
+
+            // if (prev_datum) {
+            //   if (
+            //     notyet &&
+            //     prev_datum.meta.recent_trend < 0 &&
+            //     datum.meta.recent_trend > 0
+            //   ) {
+            //     // already buy
+            //     notyet = false;
+            //   }
+            // }
+
+            if (reach && datum.close / d.close > 1.02) {
+              reach = false;
             }
             prev_datum = datum;
           }
 
-          if (notyet && old_data.length > 0) {
-            if (old_data[old_data.length - 1].meta.recent_trend > 0) {
-              ret[d.code] = {
-                buy: true,
-              };
-            }
+          if (old_data.length >= 0 && (!reach || notyet)) {
+            ret[d.code] = {
+              Code: d.code,
+              Name: d.meta.stock_name,
+              Close: d.close,
+              Low: d.low,
+              BuyPrice: convertToHoga(d.meta.insight.support_price),
+              TradePower: 0,
+              IsBuy: false,
+              Date: d.meta.date,
+              Type: d.marker,
+              IsToday: old_data.length <= 0,
+            };
+            count++;
           }
         }
       }
@@ -633,6 +778,7 @@ module.exports = {
       // 최종 매도에 대한 결정 및 가격 제공 ( 테스트 필요함. )
       let ret;
       const code = req.query.code;
+      const hold = req.query.buy;
       const power = parseFloat(req.query.power);
       const req_date = req.query.date
         ? new Date(req.query.date).getTime() - 32400000
@@ -640,26 +786,65 @@ module.exports = {
 
       try {
         const stockData = new connector.types.StockData(connector.database);
-        let _suggest_data = await stockData
-          .getTable()
-          .where("code", code)
-          .orderBy("date", "desc")
-          .limit(1);
-
-        let suggest_data = _suggest_data[0];
-        suggest_data["meta"] = JSON.parse(suggest_data["meta"]);
 
         stockData.table_name = "stock_data_" + code;
 
-        await collectFunc({ stock_code: code }, 2);
+        let ddd = await stockData
+          .getTable()
+          .where("marker", "like", "%매수%")
+          .orderBy("date", "desc")
+          .limit(1);
 
-        let data = await stockData.getTable().orderBy("date", "desc").limit(2);
+        await collectFunc({ stock_code: code }, 1);
 
-        let curr_data = data[data.length - 2];
+        let data = await stockData.getTable().orderBy("date", "desc").limit(3);
+
+        let curr_data = data[data.length - 3];
         curr_data["meta"] = JSON.parse(curr_data["meta"]);
 
-        let prev_data = data[data.length - 1];
+        let prev_data = data[data.length - 2];
         prev_data["meta"] = JSON.parse(prev_data["meta"]);
+
+        let old_data = data[data.length - 1];
+        old_data["meta"] = JSON.parse(old_data["meta"]);
+
+        const suggest_data = ddd.length > 0 ? ddd[0] : old_data;
+
+        var _water_buy =
+          curr_data.volume > 0 &&
+          old_data.meta.recent_trend < 0 &&
+          prev_data.meta.recent_trend > 0 &&
+          (suggest_data.close + prev_data.close) / 2 >= curr_data.close;
+
+        // 추매용
+        const srline =
+          curr_data.volume > 0 &&
+          curr_data.close <= (suggest_data.close + prev_data.close) / 2 &&
+          prev_data.meta.insight.future_resist >=
+            old_data.meta.insight.future_support &&
+          prev_data.meta.insight.support > old_data.meta.insight.resist &&
+          old_data.meta.insight.support == 0
+            ? true
+            : false;
+
+        // 물타기용!!
+        const mfiline =
+          curr_data.volume > 0 &&
+          curr_data.close <= (suggest_data.close + prev_data.close) / 2 &&
+          prev_data.meta.recent_trend < 0 &&
+          prev_data.meta.insight.support <= prev_data.meta.insight.resist &&
+          old_data.meta.mfi < old_data.meta.step_mfi &&
+          prev_data.meta.mfi >= prev_data.meta.step_mfi
+            ? true
+            : false;
+
+        var _buy = srline || mfiline ? true : false;
+
+        if (_water_buy) {
+          vases.logger.info(
+            "[trading] : " + code + " 바로매수 " + curr_data.meta.mfi
+          );
+        }
 
         ret = {
           code: curr_data.code,
@@ -667,27 +852,12 @@ module.exports = {
           low: curr_data.low,
           buy_price: curr_data.close,
           volume_buy: 0,
-          water_buy:
-            power >= 100 &&
-            curr_data.volume > prev_data.volume / 2 &&
-            prev_data.meta.recent_trend < 0 &&
-            curr_data.meta.recent_trend > 0
-              ? true
-              : false,
+          water_buy: false,
           init_buy: false,
-          buy:
-            curr_data.volume > 0 &&
-            curr_data.meta.recent_trend < 0 &&
-            prev_data.meta.curr_trend < 0 &&
-            curr_data.meta.curr_trend > 0 &&
-            prev_data.meta.segmentation_mean > prev_data.low &&
-            prev_data.meta.segmentation_mean >
-              prev_data.meta.segmentation_avg &&
-            curr_data.meta.insight.support >= prev_data.meta.insight.resist
-              ? true
-              : false,
+          buy: _water_buy || _buy,
         };
       } catch (error) {
+        console.log(error);
         ret = {
           code: code,
           close: 0,
@@ -699,6 +869,127 @@ module.exports = {
         };
       }
       res.status(200).send(ret);
+    },
+    status_test: async (req, res, next) => {
+      const stockList = new connector.types.StockData(connector.database);
+      const stockData = new connector.types.StockData(connector.database);
+      const dates = await stockList
+        .getTable()
+        .groupBy("date")
+        .orderBy("date", "desc")
+        .limit(100);
+
+      let origin_data = await stockList
+        .getTable()
+        .from(function () {
+          this.from(stockList.table_name)
+            .where("date", "<=", dates[0].date)
+            .andWhere("date", ">=", dates[dates.length - 1].date)
+            .orderBy("date", "desc");
+        })
+        .groupBy("code")
+        .orderBy("volume", "desc");
+
+      for (var i = 0; i < origin_data.length; i++) {
+        var suggest_data = origin_data[i];
+        suggest_data["meta"] = JSON.parse(suggest_data.meta);
+        if (suggest_data.volume > 0) {
+          stockData.table_name = "stock_data_" + suggest_data.code;
+          let virtual_data = await stockData
+            .getTable()
+            .andWhere("date", ">", suggest_data.date)
+            .orderBy("date", "asc");
+
+          if (virtual_data.length >= 3) {
+            console.log(suggest_data.code + " started");
+            virtual_data = virtual_data.map((d) => {
+              return {
+                ...d,
+                meta: JSON.parse(d.meta),
+              };
+            });
+            for (var j = 0; j < virtual_data.length; j++) {
+              const old_data = virtual_data[j];
+              const prev_data = virtual_data[j + 1];
+              const curr_data = virtual_data[j + 2];
+              try {
+                if (prev_data && curr_data) {
+                  // const prices = [];
+                  // if (old_data.meta.insight.support_price)
+                  //   prices.push(old_data.meta.insight.support_price);
+                  // if (prev_data.meta.insight.support_price)
+                  //   prices.push(prev_data.meta.insight.support_price);
+                  // if (curr_data.meta.insight.support_price)
+                  //   prices.push(curr_data.meta.insight.support_price);
+
+                  var _water_buy =
+                    curr_data.volume > 0 &&
+                    old_data.meta.recent_trend < 0 &&
+                    prev_data.meta.recent_trend > 0 &&
+                    (suggest_data.close + prev_data.close) / 2 >= curr_data.low;
+
+                  // 추매용
+                  const srline =
+                    curr_data.volume > 0 &&
+                    curr_data.low <=
+                      (suggest_data.close + prev_data.close) / 2 &&
+                    prev_data.meta.insight.future_resist >=
+                      old_data.meta.insight.future_support &&
+                    prev_data.meta.insight.support >
+                      old_data.meta.insight.resist &&
+                    old_data.meta.insight.support == 0
+                      ? true
+                      : false;
+
+                  // 물타기용!!
+                  const mfiline =
+                    curr_data.volume > 0 &&
+                    curr_data.low <=
+                      (suggest_data.close + prev_data.close) / 2 &&
+                    prev_data.meta.recent_trend < 0 &&
+                    prev_data.meta.insight.support <=
+                      prev_data.meta.insight.resist &&
+                    old_data.meta.mfi < old_data.meta.step_mfi &&
+                    prev_data.meta.mfi >= prev_data.meta.step_mfi
+                      ? true
+                      : false;
+
+                  var _buy = srline || mfiline ? true : false;
+
+                  if (_water_buy) {
+                    console.log(
+                      suggest_data.code +
+                        "(워터매수):" +
+                        moment(curr_data.date).format("YYYY-MM-DD")
+                    );
+                  }
+
+                  if (srline) {
+                    console.log(
+                      suggest_data.code +
+                        "(불타기매수): " +
+                        moment(curr_data.date).format("YYYY-MM-DD")
+                    );
+                  }
+
+                  if (mfiline) {
+                    console.log(
+                      suggest_data.code +
+                        "(물타기매수): " +
+                        moment(curr_data.date).format("YYYY-MM-DD")
+                    );
+                  }
+                }
+              } catch (error) {
+                console.log(prev_data);
+              }
+            }
+          }
+        }
+      }
+      // 최종 매도에 대한 결정 및 가격 제공 ( 테스트 필요함. )
+
+      res.status(200).send(true);
     },
     test: async (req, res, next) => {
       // 테스트 : 기간내 5프로 이상 수익 79프로 성공 확인
@@ -737,12 +1028,25 @@ module.exports = {
                   break;
                 }
               }
+              // j.meta.recent_trend > 0 &&
+              // prevData.meta.recent_trend < 0 &&
+              // j.meta.insight.future_resist > j.meta.insight.future_support &&
+              // j.meta.insight.support > prevData.meta.insight.resist
 
+              // j.meta.recent_trend > 0 &&
+              //   j.meta.insight.support > 0 &&
+              //   prevData.meta.insight.support == 0 &&
+              //   j.meta.insight.future_resist > j.meta.insight.future_support &&
+              //   j.meta.insight.support > prevData.meta.insight.resist
               if (
                 prevData &&
                 !buy_price &&
-                j.meta.recent_trend > 0 &&
-                prevData.meta.recent_trend < 0
+                j.meta.insight.support > 0 &&
+                prevData.meta.insight.support == 0 &&
+                (j.meta.insight.future_resist >
+                  prevData.meta.insight.future_resist ||
+                  j.meta.insight.future_support <
+                    prevData.meta.insight.future_support)
               ) {
                 buy_price = j.close;
               }
@@ -751,7 +1055,7 @@ module.exports = {
             }
 
             if (!isSuccess && buy_price) {
-              console.log("fail");
+              console.log("fail", d.code, moment(d.date).format("YYYY-MM-DD"));
             }
 
             if (isSuccess && buy_price) {
@@ -812,7 +1116,7 @@ module.exports = {
         var data = [];
         var insights = [];
 
-        for (var i = 390; i >= 0; i--) {
+        for (var i = req.body.data.length - 1; i >= 0; i--) {
           let result = {
             trend_cnt: 0,
             recent_trend: 0,
@@ -867,10 +1171,18 @@ module.exports = {
           prev_result = result;
         }
         if (
-          (insights[insights.length - 3].resist <
-            insights[insights.length - 2].resist &&
-            insights[insights.length - 2].future_support >
-              insights[insights.length - 2].future_resist) ||
+          // ((insights[insights.length - 3].support ||
+          //   insights[insights.length - 3].resist ||
+          //   insights[insights.length - 3].future_resist ||
+          //   insights[insights.length - 3].future_support) &&
+          //   !insights[insights.length - 2].support &&
+          //   !insights[insights.length - 2].resist &&
+          //   !insights[insights.length - 2].future_resist &&
+          //   !insights[insights.length - 2].future_support) ||
+          (prev_result.recent_trend > 0 &&
+            prev_result.prev_trend < 0 &&
+            insights[insights.length - 3].support >
+              insights[insights.length - 2].support) ||
           (insights[insights.length - 3].future_support <=
             insights[insights.length - 3].future_resist &&
             insights[insights.length - 2].future_support >
@@ -880,7 +1192,7 @@ module.exports = {
           vases.logger.info(
             "[trading] : " +
               req.body.code +
-              "신규 매도 룰 발생!! " +
+              " 신규 매도 룰 발생!! " +
               insights[insights.length - 2].support +
               "/" +
               insights[insights.length - 2].resist +
@@ -890,10 +1202,33 @@ module.exports = {
               insights[insights.length - 2].future_support
           );
         } else if (
-          insights[insights.length - 3].support <=
-            insights[insights.length - 3].resist &&
-          insights[insights.length - 2].support >
+          insights[insights.length - 2].future_support <=
+            insights[insights.length - 2].future_resist &&
+          insights[insights.length - 3].support == 0 &&
+          insights[insights.length - 2].support > 0 &&
+          insights[insights.length - 2].support >=
             insights[insights.length - 2].resist
+        ) {
+          ret = "역추세매수";
+          vases.logger.info(
+            "[trading] : " +
+              req.body.code +
+              " 역추세매매 룰 매수 발생!! " +
+              insights[insights.length - 2].support +
+              "/" +
+              insights[insights.length - 2].resist +
+              "/" +
+              insights[insights.length - 2].future_resist +
+              "/" +
+              insights[insights.length - 2].future_support
+          );
+        } else if (
+          insights[insights.length - 3].support <
+            insights[insights.length - 3].resist &&
+          insights[insights.length - 2].support >=
+            insights[insights.length - 2].resist &&
+          insights[insights.length - 2].future_resist >=
+            insights[insights.length - 2].future_support
         ) {
           ret = "매수";
           vases.logger.info(
