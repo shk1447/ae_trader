@@ -197,13 +197,15 @@ const collectFunc = async (code, days) => {
                 dataset[0]["meta"] = meta;
                 const bb = dataset.map((k) => {
                   return (
-                    (k.meta.insight.support -
+                    ((k.meta.insight.support -
                       k.meta.insight.resist +
-                      k.meta.upward_point +
-                      k.meta.downward_point) *
-                    k.meta.curr_trend *
-                    k.meta.init_trend *
-                    (k.meta.mfi / 100)
+                      k.meta.insight.future_resist -
+                      k.meta.insight.future_support) *
+                      k.meta.curr_trend *
+                      k.meta.recent_trend *
+                      k.meta.init_trend *
+                      (k.meta.mfi / 100)) /
+                    k.meta.segmentation
                   );
                 });
 
@@ -250,7 +252,7 @@ const collectFunc = async (code, days) => {
                   // }
 
                   var goods = result_arr.filter(
-                    (d) => d.best <= 0.9783730506896973 && d.buy
+                    (d) => d.best <= 0.9694517254829407 && d.buy
                   );
 
                   if (goods.length > 0) {
@@ -627,7 +629,7 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(40);
+        .limit(20);
 
       let origin_data = await stockList
         .getTable()
@@ -671,13 +673,13 @@ module.exports = {
               }
             }
 
-            if (!reach && datum.high / d.close > 1.02) {
+            if (!reach && datum.close / d.close > 1.02) {
               reach = true;
             }
             prev_datum = datum;
           }
 
-          if (old_data.length >= 0 && (!reach || notyet)) {
+          if (old_data.length >= 0 && (notyet || !reach)) {
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -812,6 +814,7 @@ module.exports = {
 
         var _water_buy =
           curr_data.volume > 0 &&
+          prev_data.volume > 10000 &&
           old_data.meta.recent_trend < 0 &&
           prev_data.meta.recent_trend > 0 &&
           (suggest_data.close + prev_data.close) / 2 >= curr_data.close;
@@ -819,6 +822,7 @@ module.exports = {
         // 추매용
         const srline =
           curr_data.volume > 0 &&
+          prev_data.volume > 10000 &&
           curr_data.close <= (suggest_data.close + prev_data.close) / 2 &&
           prev_data.meta.insight.future_resist >=
             old_data.meta.insight.future_support &&
@@ -830,6 +834,7 @@ module.exports = {
         // 물타기용!!
         const mfiline =
           curr_data.volume > 0 &&
+          prev_data.volume > 10000 &&
           curr_data.close <= (suggest_data.close + prev_data.close) / 2 &&
           prev_data.meta.recent_trend < 0 &&
           prev_data.meta.insight.support <= prev_data.meta.insight.resist &&

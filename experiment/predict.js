@@ -43,13 +43,14 @@ database({
       const cc = dd.map((k) => {
         k.meta = JSON.parse(k.meta);
         return (
-          (k.meta.insight.support -
+          ((k.meta.insight.support -
             k.meta.insight.resist +
             k.meta.insight.future_resist -
             k.meta.insight.future_support) *
-          k.meta.curr_trend *
-          k.meta.recent_trend *
-          (k.meta.mfi / 100)
+            k.meta.curr_trend *
+            k.meta.recent_trend *
+            (k.meta.mfi / 100)) /
+          k.meta.segmentation
         );
       });
       console.log(cc.length);

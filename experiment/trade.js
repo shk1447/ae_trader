@@ -9,7 +9,7 @@ let list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
 
-const mean = _.mean(list.filter((d) => d.Rate > 4).map((d) => d.Rate));
+const mean = _.mean(list.filter((d) => d.Rate > 3).map((d) => d.Rate));
 console.log(mean);
 list = list.filter((s) => {
   return s.Rate > mean;
@@ -71,13 +71,15 @@ database({
           k.meta = JSON.parse(k.meta);
 
           return (
-            (k.meta.insight.support -
+            ((k.meta.insight.support -
               k.meta.insight.resist +
               k.meta.insight.future_resist -
               k.meta.insight.future_support) *
-            k.meta.curr_trend *
-            k.meta.recent_trend *
-            (k.meta.mfi / 100)
+              k.meta.curr_trend *
+              k.meta.recent_trend *
+              k.meta.init_trend *
+              (k.meta.mfi / 100)) /
+            k.meta.segmentation
           );
         })
       );
@@ -95,7 +97,7 @@ database({
   const check_arr = Object.values(test2).map((d) => d.code);
 
   const aa = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 101 AND date <= ${
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 102 AND date <= ${
       oldDate.unix() * 1000
     } ORDER BY date desc) GROUP BY code) WHERE code not in 
     (${Object.values(test2)
@@ -116,13 +118,15 @@ database({
       dd.map((k) => {
         k.meta = JSON.parse(k.meta);
         return (
-          (k.meta.insight.support -
+          ((k.meta.insight.support -
             k.meta.insight.resist +
             k.meta.insight.future_resist -
             k.meta.insight.future_support) *
-          k.meta.curr_trend *
-          k.meta.recent_trend *
-          (k.meta.mfi / 100)
+            k.meta.curr_trend *
+            k.meta.recent_trend *
+            k.meta.init_trend *
+            (k.meta.mfi / 100)) /
+          k.meta.segmentation
         );
       })
     );
