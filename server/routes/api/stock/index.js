@@ -81,7 +81,6 @@ const collectFunc = async (code, days) => {
         let rows = [];
         let recommended_rows = [];
         const data = await collector.getSise(item.stock_code, days);
-        console.log(data);
 
         if (data.length > 0) {
           const origin_data = await stockData
@@ -184,98 +183,99 @@ const collectFunc = async (code, days) => {
             */
 
               // console.log(curr_data.length);
-              // if (curr_data.length > 100) {
-              //   let scaler = new dfd.StandardScaler();
+              if (curr_data.length > 100) {
+                let scaler = new dfd.StandardScaler();
 
-              //   const aa = curr_data.slice(
-              //     curr_data.length - 100,
-              //     curr_data.length
-              //   );
+                const aa = curr_data.slice(
+                  curr_data.length - 100,
+                  curr_data.length
+                );
 
-              //   const dataset = aa.sort((a, b) => b.date - a.date);
-              //   dataset[0]["meta"] = meta;
-              //   const bb = dataset.map((k) => {
-              //     return (
-              //       ((k.meta.insight.support -
-              //         k.meta.insight.resist +
-              //         k.meta.insight.future_resist -
-              //         k.meta.insight.future_support) *
-              //         k.meta.curr_trend *
-              //         k.meta.init_trend *
-              //         (k.meta.mfi / 100)) /
-              //       (k.meta.segmentation +
-              //         k.meta.upward_point +
-              //         k.meta.downward_point)
-              //     );
-              //   });
+                const dataset = aa.sort((a, b) => b.date - a.date);
+                dataset[0]["meta"] = meta;
+                const bb = dataset.map((k) => {
+                  return (
+                    ((k.meta.insight.support -
+                      k.meta.insight.resist +
+                      k.meta.insight.future_resist -
+                      k.meta.insight.future_support) *
+                      k.meta.curr_trend *
+                      k.meta.init_trend *
+                      (k.meta.mfi / 100)) /
+                    (k.meta.segmentation +
+                      k.meta.upward_point +
+                      k.meta.downward_point)
+                  );
+                });
 
-              //   let df = new dfd.Series(bb);
-              //   scaler.fit(df);
-              //   let df_enc = scaler.transform(df);
-              //   const test_data = [];
-              //   if (dataset.length == 100) {
-              //     test_data.push({
-              //       code: item.stock_code,
-              //       data: df_enc.values,
-              //       meta: dataset[0].meta,
-              //       prev_meta: dataset[1].meta,
-              //     });
+                let df = new dfd.Series(bb);
+                scaler.fit(df);
+                let df_enc = scaler.transform(df);
+                const test_data = [];
+                if (dataset.length == 100) {
+                  test_data.push({
+                    code: item.stock_code,
+                    data: df_enc.values,
+                    meta: dataset[0].meta,
+                    prev_meta: dataset[1].meta,
+                  });
 
-              //     const [best_mse] = tf.tidy(() => {
-              //       let dataTensor = tf.tensor2d(
-              //         test_data.map((item) => item.data),
-              //         [test_data.length, test_data[0].data.length]
-              //       );
-              //       let preds = best_model.predict(dataTensor, {
-              //         batchSize: 1,
-              //       });
-              //       return [tf.sub(preds, dataTensor).square().mean(1), preds];
-              //     });
+                  const [best_mse] = tf.tidy(() => {
+                    let dataTensor = tf.tensor2d(
+                      test_data.map((item) => item.data),
+                      [test_data.length, test_data[0].data.length]
+                    );
+                    let preds = best_model.predict(dataTensor, {
+                      batchSize: 1,
+                    });
+                    return [tf.sub(preds, dataTensor).square().mean(1), preds];
+                  });
 
-              //     let best_array = await best_mse.array();
+                  let best_array = await best_mse.array();
 
-              //     let result_arr = test_data.map((d, idx) => {
-              //       return {
-              //         code: d.code,
-              //         best: best_array[idx],
-              //         buy:
-              //           d.prev_meta.recent_trend < 0 &&
-              //           d.meta.insight.support >= d.prev_meta.insight.support &&
-              //           d.meta.insight.support >= 1 &&
-              //           d.prev_meta.insight.support <= 1 &&
-              //           d.prev_meta.mfi > d.meta.mfi &&
-              //           d.meta.insight.future_resist >=
-              //             d.meta.insight.future_support,
-              //       };
-              //     });
+                  let result_arr = test_data.map((d, idx) => {
+                    return {
+                      code: d.code,
+                      best: best_array[idx],
+                      buy:
+                        d.prev_meta.recent_trend < 0 &&
+                        (d.meta.insight.resist <= 1 ||
+                          d.prev_meta.insight.resist <= 1) &&
+                        d.meta.insight.support >= 1 &&
+                        d.prev_meta.insight.support <= 0 &&
+                        d.prev_meta.mfi > d.meta.mfi &&
+                        d.meta.insight.future_resist >=
+                          d.meta.insight.future_support,
+                    };
+                  });
 
-              //     // if (result_arr.length > 0) {
-              //     //   row["label"] = result_arr[0].best;
-              //     // }
+                  // if (result_arr.length > 0) {
+                  //   row["label"] = result_arr[0].best;
+                  // }
 
-              //     var goods = result_arr.filter(
-              //       (d) => d.best < 0.9841759204864502 && d.buy
-              //     );
+                  var goods = result_arr.filter(
+                    (d) => d.best < 0.9841759204864502 && d.buy
+                  );
 
-              //     if (goods.length > 0) {
-              //       row["marker"] = "AI매수";
+                  if (goods.length > 0) {
+                    row["marker"] = "AI매수";
 
-              //       let futures = all_data.slice(i + 1, i + 61);
-              //       if (futures.length > 0) {
-              //         var max_point = [...futures].sort(
-              //           (a, b) => b.high - a.high
-              //         )[0];
-              //         var high_rate = (max_point.high / row.close) * 100;
+                    let futures = all_data.slice(i + 1, i + 61);
+                    if (futures.length > 0) {
+                      var max_point = [...futures].sort(
+                        (a, b) => b.high - a.high
+                      )[0];
+                      var high_rate = (max_point.high / row.close) * 100;
 
-              //         row["result"] = high_rate;
-              //       } else {
-              //         row["result"] = 100;
-              //       }
+                      row["result"] = high_rate;
+                    } else {
+                      row["result"] = 100;
+                    }
 
-              //       recommended_rows.push(row);
-              //     }
-              //   }
-              // }
+                    recommended_rows.push(row);
+                  }
+                }
+              }
 
               result["meta"] = meta;
               all_data[i]["meta"] = meta;

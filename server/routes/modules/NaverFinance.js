@@ -45,7 +45,6 @@ module.exports = (function () {
                 ];
 
                 try {
-                  console.log(nodes.length);
                   for (let index = 0; index < nodes.length; index++) {
                     var node = nodes[index];
 
