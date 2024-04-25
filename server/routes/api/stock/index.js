@@ -239,12 +239,10 @@ const collectFunc = async (code, days) => {
                       best: best_array[idx],
                       buy:
                         d.prev_meta.recent_trend < 0 &&
-                        (d.meta.insight.resist <= 1 ||
-                          d.prev_meta.insight.resist <= 1) &&
                         d.meta.insight.support >= 1 &&
                         d.prev_meta.insight.support <= 0 &&
-                        d.prev_meta.mfi > d.meta.mfi &&
-                        d.meta.insight.future_resist >=
+                        d.prev_meta.mfi < d.meta.mfi &&
+                        d.meta.insight.future_resist <=
                           d.meta.insight.future_support,
                     };
                   });
