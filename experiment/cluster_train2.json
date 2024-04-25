@@ -1,0 +1,535 @@
+[
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": 0.08,
+    "recent_trend": 1,
+    "recent_trend_redata": 0.24,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 12,
+      "future_resist": 5,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": 107009.27506836531,
+      "future_resist_price": 154424.1023364964,
+      "future_support_price": null,
+      "cross_volume": 582701.8601314492
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 12,
+      "future_resist": 5,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": 107009.27506836531,
+      "future_resist_price": 154424.1023364964,
+      "future_support_price": null,
+      "cross_volume": 582701.8601314492
+    },
+    "up_redata": 2.98,
+    "down_redata": 6.09,
+    "insight_redata": {
+      "support": 6.19,
+      "resist": 3.98,
+      "future_resist": 4.66,
+      "future_support": 1.3
+    },
+    "seg_redata": 3.28,
+    "seg": 3,
+    "days": 0,
+    "result": 0
+  },
+  {
+    "curr_trend": 1,
+    "curr_trend_redata": 0.14,
+    "recent_trend": 1,
+    "recent_trend_redata": 0.42,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 3,
+      "future_resist": 0,
+      "future_support": 5,
+      "resist_price": null,
+      "support_price": 13351.110137306574,
+      "future_resist_price": null,
+      "future_support_price": 10172.711004295837,
+      "cross_volume": 315049.2801688034
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 2,
+      "future_resist": 0,
+      "future_support": 5,
+      "resist_price": null,
+      "support_price": 13348.09377738837,
+      "future_resist_price": null,
+      "future_support_price": 10172.711004295837,
+      "cross_volume": 328139.01675991714
+    },
+    "up_redata": 3.05,
+    "down_redata": 3.54,
+    "insight_redata": {
+      "support": 2.95,
+      "resist": 0.34,
+      "future_resist": 1.87,
+      "future_support": 2.29
+    },
+    "seg_redata": 4.07,
+    "seg": 4,
+    "days": 0,
+    "result": 0
+  },
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": 0,
+    "recent_trend": 1,
+    "recent_trend_redata": 0,
+    "init_trend": -1,
+    "insight": {
+      "resist": 3,
+      "support": 8,
+      "future_resist": 3,
+      "future_support": 0,
+      "resist_price": 16307.725079560405,
+      "support_price": 12682.012221219742,
+      "future_resist_price": 16659.03670094777,
+      "future_support_price": null,
+      "cross_volume": 170862.51620388866
+    },
+    "prev_insight": {
+      "resist": 3,
+      "support": 8,
+      "future_resist": 3,
+      "future_support": 0,
+      "resist_price": 16307.725079560405,
+      "support_price": 12682.012221219742,
+      "future_resist_price": 16659.03670094777,
+      "future_support_price": null,
+      "cross_volume": 170862.51620388866
+    },
+    "up_redata": 2.85,
+    "down_redata": 4.77,
+    "insight_redata": {
+      "support": 3.28,
+      "resist": 2.28,
+      "future_resist": 3,
+      "future_support": 0.95
+    },
+    "seg_redata": 3.71,
+    "seg": 5,
+    "days": 624,
+    "result": 1.0743055555555556
+  },
+  {
+    "curr_trend": 1,
+    "curr_trend_redata": -0.24,
+    "recent_trend": -1,
+    "recent_trend_redata": -0.66,
+    "init_trend": -1,
+    "insight": {
+      "resist": 1,
+      "support": 2,
+      "future_resist": 4,
+      "future_support": 0,
+      "resist_price": 871.0643274853742,
+      "support_price": 837.7326599326517,
+      "future_resist_price": 1140.6540718445062,
+      "future_support_price": null,
+      "cross_volume": 709661.4502692109
+    },
+    "prev_insight": {
+      "resist": 1,
+      "support": 1,
+      "future_resist": 2,
+      "future_support": 0,
+      "resist_price": 871.0643274853742,
+      "support_price": 832.6060606060565,
+      "future_resist_price": 1153.7611184845084,
+      "future_support_price": null,
+      "cross_volume": 713191.1606522261
+    },
+    "up_redata": 1.38,
+    "down_redata": 4.5,
+    "insight_redata": {
+      "support": 2.05,
+      "resist": 1.01,
+      "future_resist": 2.19,
+      "future_support": 0.38
+    },
+    "seg_redata": 3.44,
+    "seg": 4,
+    "days": 129,
+    "result": 1.0613207547169812
+  },
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": -0.22,
+    "recent_trend": 1,
+    "recent_trend_redata": -0.74,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 0,
+      "future_resist": 0,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": null,
+      "future_resist_price": null,
+      "future_support_price": null,
+      "cross_volume": null
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 0,
+      "future_resist": 0,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": null,
+      "future_resist_price": null,
+      "future_support_price": null,
+      "cross_volume": null
+    },
+    "up_redata": 1.22,
+    "down_redata": 6.16,
+    "insight_redata": {
+      "support": 2.24,
+      "resist": 0.08,
+      "future_resist": 0.72,
+      "future_support": 0.58
+    },
+    "seg_redata": 4.15,
+    "seg": 5,
+    "days": 193,
+    "result": 1.1001042752867571
+  },
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": -0.02,
+    "recent_trend": 1,
+    "recent_trend_redata": 0.4,
+    "init_trend": 1,
+    "insight": {
+      "resist": 2,
+      "support": 1,
+      "future_resist": 0,
+      "future_support": 6,
+      "resist_price": 36385.65938283739,
+      "support_price": 31951.27118644055,
+      "future_resist_price": null,
+      "future_support_price": 24829.49567225867,
+      "cross_volume": 404998.83222638187
+    },
+    "prev_insight": {
+      "resist": 2,
+      "support": 1,
+      "future_resist": 0,
+      "future_support": 6,
+      "resist_price": 36385.65938283739,
+      "support_price": 31951.27118644055,
+      "future_resist_price": null,
+      "future_support_price": 24829.49567225867,
+      "cross_volume": 404998.83222638187
+    },
+    "up_redata": 10.33,
+    "down_redata": 2.2,
+    "insight_redata": {
+      "support": 6.64,
+      "resist": 3.52,
+      "future_resist": 4.49,
+      "future_support": 4.89
+    },
+    "seg_redata": 3.35,
+    "seg": 4,
+    "days": 102,
+    "result": 1.061377245508982
+  },
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": 0.04,
+    "recent_trend": -1,
+    "recent_trend_redata": 0.24,
+    "init_trend": 1,
+    "insight": {
+      "resist": 4,
+      "support": 4,
+      "future_resist": 1,
+      "future_support": 3,
+      "resist_price": 1816.1763946542565,
+      "support_price": 1593.5779617429193,
+      "future_resist_price": 1752.2988505747132,
+      "future_support_price": 1621.7502644576653,
+      "cross_volume": 5139529.29472549
+    },
+    "prev_insight": {
+      "resist": 4,
+      "support": 4,
+      "future_resist": 1,
+      "future_support": 3,
+      "resist_price": 1816.1763946542565,
+      "support_price": 1593.5779617429193,
+      "future_resist_price": 1752.2988505747132,
+      "future_support_price": 1621.7502644576653,
+      "cross_volume": 5178949.926940497
+    },
+    "up_redata": 4.29,
+    "down_redata": 3.83,
+    "insight_redata": {
+      "support": 3.3,
+      "resist": 1.31,
+      "future_resist": 1.89,
+      "future_support": 1.06
+    },
+    "seg_redata": 4.04,
+    "seg": 4,
+    "days": 0,
+    "result": 0
+  },
+  {
+    "curr_trend": 1,
+    "curr_trend_redata": 0.02,
+    "recent_trend": -1,
+    "recent_trend_redata": 0.14,
+    "init_trend": -1,
+    "insight": {
+      "resist": 10,
+      "support": 7,
+      "future_resist": 12,
+      "future_support": 0,
+      "resist_price": 91776.12098848619,
+      "support_price": 68516.06327419952,
+      "future_resist_price": 137824.49341258875,
+      "future_support_price": null,
+      "cross_volume": 285864.6521640509
+    },
+    "prev_insight": {
+      "resist": 14,
+      "support": 0,
+      "future_resist": 9,
+      "future_support": 0,
+      "resist_price": 85345.7504250795,
+      "support_price": null,
+      "future_resist_price": 147996.99026994704,
+      "future_support_price": null,
+      "cross_volume": 305866.9707520824
+    },
+    "up_redata": 4.18,
+    "down_redata": 4.24,
+    "insight_redata": {
+      "support": 3.49,
+      "resist": 4.01,
+      "future_resist": 4.83,
+      "future_support": 0.41
+    },
+    "seg_redata": 4.16,
+    "seg": 6,
+    "days": 0,
+    "result": 0
+  },
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": -0.24,
+    "recent_trend": 1,
+    "recent_trend_redata": -0.62,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 4,
+      "future_resist": 6,
+      "future_support": 1,
+      "resist_price": null,
+      "support_price": 832.8399597423476,
+      "future_resist_price": 1065.1485627515688,
+      "future_support_price": 826.692449355432,
+      "cross_volume": 643702.7488500475
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 4,
+      "future_resist": 6,
+      "future_support": 1,
+      "resist_price": null,
+      "support_price": 832.8399597423476,
+      "future_resist_price": 1065.1485627515688,
+      "future_support_price": 826.692449355432,
+      "cross_volume": 643702.7488500475
+    },
+    "up_redata": 1.44,
+    "down_redata": 4.52,
+    "insight_redata": {
+      "support": 2.13,
+      "resist": 1.01,
+      "future_resist": 2.31,
+      "future_support": 0.4
+    },
+    "seg_redata": 3.46,
+    "seg": 3,
+    "days": 166,
+    "result": 1.0672853828306264
+  },
+  {
+    "curr_trend": 1,
+    "curr_trend_redata": 0.28,
+    "recent_trend": 1,
+    "recent_trend_redata": 0.96,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 7,
+      "future_resist": 0,
+      "future_support": 3,
+      "resist_price": null,
+      "support_price": 2040.5679153375766,
+      "future_resist_price": null,
+      "future_support_price": 2505.698682843437,
+      "cross_volume": 41851.005469346775
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 7,
+      "future_resist": 0,
+      "future_support": 3,
+      "resist_price": null,
+      "support_price": 2040.5679153375766,
+      "future_resist_price": null,
+      "future_support_price": 2505.698682843437,
+      "cross_volume": 44249.90214691051
+    },
+    "up_redata": 4.25,
+    "down_redata": 5.7,
+    "insight_redata": {
+      "support": 8.62,
+      "resist": 1.14,
+      "future_resist": 4.13,
+      "future_support": 1.81
+    },
+    "seg_redata": 3.24,
+    "seg": 2,
+    "days": 104,
+    "result": 1.0528375733855186
+  },
+  {
+    "curr_trend": -1,
+    "curr_trend_redata": -0.04,
+    "recent_trend": 1,
+    "recent_trend_redata": -0.42,
+    "init_trend": 1,
+    "insight": {
+      "resist": 5,
+      "support": 2,
+      "future_resist": 4,
+      "future_support": 0,
+      "resist_price": 14082.422924863728,
+      "support_price": 12397.079039603666,
+      "future_resist_price": 15081.437066843298,
+      "future_support_price": null,
+      "cross_volume": 334053.8570716139
+    },
+    "prev_insight": {
+      "resist": 3,
+      "support": 4,
+      "future_resist": 4,
+      "future_support": 0,
+      "resist_price": 14816.216572433348,
+      "support_price": 12689.40574655648,
+      "future_resist_price": 15081.437066843298,
+      "future_support_price": null,
+      "cross_volume": 334053.8570716139
+    },
+    "up_redata": 5.56,
+    "down_redata": 3.93,
+    "insight_redata": {
+      "support": 4.68,
+      "resist": 2.24,
+      "future_resist": 2.81,
+      "future_support": 1.21
+    },
+    "seg_redata": 3.78,
+    "seg": 6,
+    "days": 0,
+    "result": 0
+  },
+  {
+    "curr_trend": 1,
+    "curr_trend_redata": -0.14,
+    "recent_trend": -1,
+    "recent_trend_redata": -0.66,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 0,
+      "future_resist": 0,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": null,
+      "future_resist_price": null,
+      "future_support_price": null,
+      "cross_volume": null
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 0,
+      "future_resist": 0,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": null,
+      "future_resist_price": null,
+      "future_support_price": null,
+      "cross_volume": null
+    },
+    "up_redata": 2.89,
+    "down_redata": 4.54,
+    "insight_redata": {
+      "support": 4.13,
+      "resist": 3,
+      "future_resist": 3.77,
+      "future_support": 1.51
+    },
+    "seg_redata": 3.59,
+    "seg": 2,
+    "days": 0,
+    "result": 0
+  },
+  {
+    "curr_trend": 1,
+    "curr_trend_redata": -0.04,
+    "recent_trend": -1,
+    "recent_trend_redata": -0.18,
+    "init_trend": -1,
+    "insight": {
+      "resist": 0,
+      "support": 1,
+      "future_resist": 1,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": 22161.3442911652,
+      "future_resist_price": 32456.34517766552,
+      "future_support_price": null,
+      "cross_volume": 194719.07367149758
+    },
+    "prev_insight": {
+      "resist": 0,
+      "support": 0,
+      "future_resist": 0,
+      "future_support": 0,
+      "resist_price": null,
+      "support_price": null,
+      "future_resist_price": null,
+      "future_support_price": null,
+      "cross_volume": null
+    },
+    "up_redata": 1.45,
+    "down_redata": 1.48,
+    "insight_redata": {
+      "support": 0.34,
+      "resist": 0.91,
+      "future_resist": 1.12,
+      "future_support": 0.11
+    },
+    "seg_redata": 2.78,
+    "seg": 2,
+    "days": 0,
+    "result": 0
+  }
+]

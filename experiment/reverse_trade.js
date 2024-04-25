@@ -9,8 +9,10 @@ let list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
 
+const mean = _.mean(list.filter((d) => d.Rate < 1).map((d) => d.Rate));
+console.log(mean);
 list = list.filter((s) => {
-  return s.Rate > 3;
+  return s.Rate < 1;
 });
 
 console.log(list.length);
@@ -22,55 +24,90 @@ database({
     filename: "../server/trader.db",
   },
 }).then(async ({ knex }) => {
-  const aa = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result < 103 AND result > 99 AND date <= ${
-      oldDate.unix() * 1000
-    } ORDER BY date desc) GROUP BY code)`
+  var test = {};
+  _.each(list, (v, k) => {
+    const date = moment(v.Time).format("YYYY-MM-DD");
+    test[v.Name + date] = { name: v.Name, rate: v.Rate, time: v.Time };
+  });
+  const orgs = Object.values(test);
+  var test2 = {};
+  _.each(orgs, (org) => {
+    test2[org.name] = org;
+  });
+  const data = await knex.raw(
+    `SELECT * FROM stock_list WHERE stock_name in (${orgs
+      .map((v) => `'${v.name}'`)
+      .toString()});`
   );
-  console.log("train_data : ", aa.length);
-  let train_data = [];
-  for (var i = 0; i < aa.length; i++) {
-    var item = aa[i];
+  console.log(test2);
+  for (var i = 0; i < data.length; i++) {
+    var item = data[i];
+    test2[item.stock_name].code = item.stock_code;
 
-    let scaler = new dfd.StandardScaler();
-    let dd = await knex.raw(
-      `SELECT * FROM stock_data_${item.code} WHERE date <= ${item.date} ORDER BY date desc LIMIT 100`
+    const qqq = await knex.raw(
+      `SELECT * FROM stock_data_${item.stock_code} WHERE date <= ${
+        moment(test2[item.stock_name].time).unix() * 1000
+      } AND result is not null ORDER BY date desc LIMIT 1`
     );
+    if (qqq.length > 0) {
+      test2[item.stock_name].date = qqq[0].date;
+    }
+    // console.log(qqq[0].date);
+  }
 
-    let df = new dfd.DataFrame(
-      dd.map((k) => {
-        k.meta = JSON.parse(k.meta);
-        return (
-          (k.meta.insight.support -
-            k.meta.insight.resist +
-            k.meta.upward_point +
-            k.meta.downward_point +
-            k.meta.segmentation) *
-          k.meta.curr_trend *
-          k.meta.init_trend
-        );
-      })
-    );
-    scaler.fit(df);
-    let df_enc = scaler.transform(df);
-    if (dd.length == 100) {
-      train_data.push({
-        data: df_enc.values,
-        target: 1,
-      });
+  const train_data = [];
+  for (var i = 0; i < orgs.length; i++) {
+    var item = orgs[i];
+    if (test2[item.name].code) {
+      let scaler = new dfd.StandardScaler();
+      const dd = await knex.raw(
+        `SELECT * FROM stock_data_${test2[item.name].code} WHERE date <= '${
+          test2[item.name].date
+        }' ORDER BY date desc LIMIT 100`
+      );
+
+      let df = new dfd.DataFrame(
+        dd.map((k) => {
+          k.meta = JSON.parse(k.meta);
+
+          return (
+            ((k.meta.insight.support -
+              k.meta.insight.resist +
+              k.meta.insight.future_resist -
+              k.meta.insight.future_support) *
+              k.meta.curr_trend *
+              k.meta.init_trend *
+              (k.meta.mfi / 100)) /
+            k.meta.segmentation
+          );
+        })
+      );
+      scaler.fit(df);
+      let df_enc = scaler.transform(df);
+      if (dd.length == 100) {
+        train_data.push({
+          data: df_enc.values,
+          target: 1,
+        });
+      }
     }
   }
 
-  const aa1 = await knex.raw(
-    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result > 105 AND date <= ${
-      oldDate.unix() * 1000
-    } ORDER BY date desc) GROUP BY code)`
-  );
-  console.log("vaild_data : ", aa1.length);
-  let valid_data = [];
-  for (var i = 0; i < aa1.length; i++) {
-    var item = aa1[i];
+  const check_arr = Object.values(test2).map((d) => d.code);
 
+  const aa = await knex.raw(
+    `SELECT * FROM (SELECT * FROM (SELECT * FROM stock_data WHERE result > 110 AND date <= ${
+      oldDate.unix() * 1000
+    } ORDER BY date desc) GROUP BY code) WHERE code not in 
+    (${Object.values(test2)
+      .map((v) => `'${v.code}'`)
+      .toString()})`
+  );
+  console.log("vaild_data : ", aa.length);
+  let valid_data = [];
+  for (var i = 0; i < aa.length; i++) {
+    var item = aa[i];
+    if (check_arr.includes(item.code)) continue;
     let scaler = new dfd.StandardScaler();
     let dd = await knex.raw(
       `SELECT * FROM stock_data_${item.code} WHERE date <= ${item.date} ORDER BY date desc LIMIT 100`
@@ -80,13 +117,14 @@ database({
       dd.map((k) => {
         k.meta = JSON.parse(k.meta);
         return (
-          (k.meta.insight.support -
+          ((k.meta.insight.support -
             k.meta.insight.resist +
-            k.meta.upward_point +
-            k.meta.downward_point +
-            k.meta.segmentation) *
-          k.meta.curr_trend *
-          k.meta.init_trend
+            k.meta.insight.future_resist -
+            k.meta.insight.future_support) *
+            k.meta.curr_trend *
+            k.meta.init_trend *
+            (k.meta.mfi / 100)) /
+          k.meta.segmentation
         );
       })
     );
@@ -99,21 +137,19 @@ database({
       });
     }
   }
-
-  valid_data = valid_data.concat(train_data);
-
+  console.log(valid_data.length);
   valid_data = _.shuffle(valid_data);
+  // valid_data = valid_data.concat(train_data);
 
-  fsPath.writeFileSync(
-    path.resolve(__dirname, `./reverse_train2.json`),
-    JSON.stringify(_.shuffle(train_data))
-  );
+  // fsPath.writeFileSync(
+  //   path.resolve(__dirname, `./reverse_train2.json`),
+  //   JSON.stringify(_.shuffle(train_data))
+  // );
 
   fsPath.writeFileSync(
     path.resolve(__dirname, `./reverse_valid2.json`),
     JSON.stringify(valid_data)
   );
-
-  console.log(valid_data.length);
   console.log(train_data.length);
+  console.log(valid_data.length);
 });

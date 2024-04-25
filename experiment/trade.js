@@ -9,14 +9,14 @@ let list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
 
-const mean = _.mean(list.filter((d) => d.Rate > 3).map((d) => d.Rate));
+const mean = _.mean(list.filter((d) => d.Rate > 2.5).map((d) => d.Rate));
 console.log(mean);
 list = list.filter((s) => {
   return s.Rate > mean;
 });
 
 console.log(list.length);
-const oldDate = moment().add(-60, "days");
+const oldDate = moment().add(-220, "days");
 
 database({
   type: "better-sqlite3",
@@ -76,10 +76,9 @@ database({
               k.meta.insight.future_resist -
               k.meta.insight.future_support) *
               k.meta.curr_trend *
-              k.meta.recent_trend *
               k.meta.init_trend *
               (k.meta.mfi / 100)) /
-            k.meta.segmentation
+            (k.meta.segmentation + k.meta.upward_point + k.meta.downward_point)
           );
         })
       );
@@ -123,10 +122,9 @@ database({
             k.meta.insight.future_resist -
             k.meta.insight.future_support) *
             k.meta.curr_trend *
-            k.meta.recent_trend *
             k.meta.init_trend *
             (k.meta.mfi / 100)) /
-          k.meta.segmentation
+          (k.meta.segmentation + k.meta.upward_point + k.meta.downward_point)
         );
       })
     );

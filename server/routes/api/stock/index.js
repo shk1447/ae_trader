@@ -46,7 +46,7 @@ const convertToHoga = (price) => {
 
 const collectFunc = async (code, days) => {
   const best_model = await tf.loadLayersModel(
-    "http://localhost:8081/new_ae_model/model.json"
+    "http://127.0.0.1:8081/new_ae_model/model.json"
   );
 
   return new Promise(async (resolve, reject) => {
@@ -81,8 +81,7 @@ const collectFunc = async (code, days) => {
         let rows = [];
         let recommended_rows = [];
         const data = await collector.getSise(item.stock_code, days);
-
-        // console.log(data)
+        console.log(data);
 
         if (data.length > 0) {
           const origin_data = await stockData
@@ -185,95 +184,98 @@ const collectFunc = async (code, days) => {
             */
 
               // console.log(curr_data.length);
-              if (curr_data.length > 100) {
-                let scaler = new dfd.StandardScaler();
+              // if (curr_data.length > 100) {
+              //   let scaler = new dfd.StandardScaler();
 
-                const aa = curr_data.slice(
-                  curr_data.length - 100,
-                  curr_data.length
-                );
+              //   const aa = curr_data.slice(
+              //     curr_data.length - 100,
+              //     curr_data.length
+              //   );
 
-                const dataset = aa.sort((a, b) => b.date - a.date);
-                dataset[0]["meta"] = meta;
-                const bb = dataset.map((k) => {
-                  return (
-                    ((k.meta.insight.support -
-                      k.meta.insight.resist +
-                      k.meta.insight.future_resist -
-                      k.meta.insight.future_support) *
-                      k.meta.curr_trend *
-                      k.meta.recent_trend *
-                      k.meta.init_trend *
-                      (k.meta.mfi / 100)) /
-                    k.meta.segmentation
-                  );
-                });
+              //   const dataset = aa.sort((a, b) => b.date - a.date);
+              //   dataset[0]["meta"] = meta;
+              //   const bb = dataset.map((k) => {
+              //     return (
+              //       ((k.meta.insight.support -
+              //         k.meta.insight.resist +
+              //         k.meta.insight.future_resist -
+              //         k.meta.insight.future_support) *
+              //         k.meta.curr_trend *
+              //         k.meta.init_trend *
+              //         (k.meta.mfi / 100)) /
+              //       (k.meta.segmentation +
+              //         k.meta.upward_point +
+              //         k.meta.downward_point)
+              //     );
+              //   });
 
-                let df = new dfd.Series(bb);
-                scaler.fit(df);
-                let df_enc = scaler.transform(df);
-                const test_data = [];
-                if (dataset.length == 100) {
-                  test_data.push({
-                    code: item.stock_code,
-                    data: df_enc.values,
-                    meta: dataset[0].meta,
-                    prev_meta: dataset[1].meta,
-                  });
+              //   let df = new dfd.Series(bb);
+              //   scaler.fit(df);
+              //   let df_enc = scaler.transform(df);
+              //   const test_data = [];
+              //   if (dataset.length == 100) {
+              //     test_data.push({
+              //       code: item.stock_code,
+              //       data: df_enc.values,
+              //       meta: dataset[0].meta,
+              //       prev_meta: dataset[1].meta,
+              //     });
 
-                  const [best_mse] = tf.tidy(() => {
-                    let dataTensor = tf.tensor2d(
-                      test_data.map((item) => item.data),
-                      [test_data.length, test_data[0].data.length]
-                    );
-                    let preds = best_model.predict(dataTensor, {
-                      batchSize: 1,
-                    });
-                    return [tf.sub(preds, dataTensor).square().mean(1), preds];
-                  });
+              //     const [best_mse] = tf.tidy(() => {
+              //       let dataTensor = tf.tensor2d(
+              //         test_data.map((item) => item.data),
+              //         [test_data.length, test_data[0].data.length]
+              //       );
+              //       let preds = best_model.predict(dataTensor, {
+              //         batchSize: 1,
+              //       });
+              //       return [tf.sub(preds, dataTensor).square().mean(1), preds];
+              //     });
 
-                  let best_array = await best_mse.array();
+              //     let best_array = await best_mse.array();
 
-                  let result_arr = test_data.map((d, idx) => {
-                    return {
-                      code: d.code,
-                      best: best_array[idx],
-                      buy:
-                        d.prev_meta.recent_trend < 0 &&
-                        d.meta.insight.support > 0 &&
-                        d.prev_meta.insight.support == 0 &&
-                        d.meta.insight.future_resist >=
-                          d.meta.insight.future_support,
-                    };
-                  });
+              //     let result_arr = test_data.map((d, idx) => {
+              //       return {
+              //         code: d.code,
+              //         best: best_array[idx],
+              //         buy:
+              //           d.prev_meta.recent_trend < 0 &&
+              //           d.meta.insight.support >= d.prev_meta.insight.support &&
+              //           d.meta.insight.support >= 1 &&
+              //           d.prev_meta.insight.support <= 1 &&
+              //           d.prev_meta.mfi > d.meta.mfi &&
+              //           d.meta.insight.future_resist >=
+              //             d.meta.insight.future_support,
+              //       };
+              //     });
 
-                  // if (result_arr.length > 0) {
-                  //   row["label"] = result_arr[0].best;
-                  // }
+              //     // if (result_arr.length > 0) {
+              //     //   row["label"] = result_arr[0].best;
+              //     // }
 
-                  var goods = result_arr.filter(
-                    (d) => d.best <= 0.9694517254829407 && d.buy
-                  );
+              //     var goods = result_arr.filter(
+              //       (d) => d.best < 0.9841759204864502 && d.buy
+              //     );
 
-                  if (goods.length > 0) {
-                    row["marker"] = "AI매수";
+              //     if (goods.length > 0) {
+              //       row["marker"] = "AI매수";
 
-                    let futures = all_data.slice(i + 1, i + 61);
-                    if (futures.length > 0) {
-                      var max_point = [...futures].sort(
-                        (a, b) => b.high - a.high
-                      )[0];
-                      var high_rate = (max_point.high / row.close) * 100;
+              //       let futures = all_data.slice(i + 1, i + 61);
+              //       if (futures.length > 0) {
+              //         var max_point = [...futures].sort(
+              //           (a, b) => b.high - a.high
+              //         )[0];
+              //         var high_rate = (max_point.high / row.close) * 100;
 
-                      row["result"] = high_rate;
-                    } else {
-                      row["result"] = 100;
-                    }
+              //         row["result"] = high_rate;
+              //       } else {
+              //         row["result"] = 100;
+              //       }
 
-                    recommended_rows.push(row);
-                  }
-                }
-              }
+              //       recommended_rows.push(row);
+              //     }
+              //   }
+              // }
 
               result["meta"] = meta;
               all_data[i]["meta"] = meta;
@@ -500,7 +502,7 @@ if (cluster.isMaster) {
   console.log("master!!!");
   var CronJob = require("cron").CronJob;
   var collect_job = new CronJob(
-    "40 8,14 * * 1-5",
+    "10 9 * * 1-5",
     collect_job_func,
     null,
     false,
@@ -509,7 +511,7 @@ if (cluster.isMaster) {
   collect_job.start();
 
   var collect_job2 = new CronJob(
-    "45 16 * * 1-5",
+    "40 16 * * 1-5",
     collect_job_func2,
     null,
     false,
@@ -629,7 +631,7 @@ module.exports = {
         .getTable()
         .groupBy("date")
         .orderBy("date", "desc")
-        .limit(20);
+        .limit(60);
 
       let origin_data = await stockList
         .getTable()
@@ -646,6 +648,7 @@ module.exports = {
       var count = 0;
       console.log(origin_data.length);
       for (var i = 0; i < origin_data.length; i++) {
+        if (count == 99) break;
         var d = origin_data[i];
         d["meta"] = JSON.parse(d.meta);
         if (d.volume > 0) {
@@ -673,13 +676,13 @@ module.exports = {
               }
             }
 
-            if (!reach && datum.close / d.close > 1.02) {
+            if (!reach && datum.close / d.close > 1.03) {
               reach = true;
             }
             prev_datum = datum;
           }
 
-          if (old_data.length >= 0 && (notyet || !reach)) {
+          if (old_data.length >= 0 && notyet && !reach) {
             ret[d.code] = {
               Code: d.code,
               Name: d.meta.stock_name,
@@ -690,7 +693,7 @@ module.exports = {
               IsBuy: false,
               Date: d.meta.date,
               Type: d.marker,
-              IsToday: old_data.length <= 0,
+              IsToday: old_data.length <= 2,
             };
             count++;
           }
@@ -698,6 +701,33 @@ module.exports = {
       }
 
       res.status(200).send(ret);
+    },
+    train_list: async (req, res, next) => {
+      const stockList = new connector.types.StockData(connector.database);
+      const stockData = new connector.types.StockData(connector.database);
+      const list = await stockList
+        .getTable()
+        .andWhere("date", "<=", moment().add(-60).format("YYYY-MM-DD"))
+        .orderBy("date", "desc");
+
+      // for(var item of list) {
+      //   stockData.table_name = "stock_data_" + item.code;
+      //   let old_data = await stockData
+      //     .getTable()
+      //     .andWhere("date", "<=", item.date)
+      //     .orderBy("date", "desc")
+      //     .limit(200)
+
+      //   if(old_data.length == 200) {
+      //     old_data.map((d) => {
+      //       d.meta = JSON.parse(d.meta)
+      //       return d
+      //     })
+      //     item.chartData = old_data
+      //   }
+      // }
+
+      res.status(200).send(list);
     },
     manual: async (req, res, next) => {
       const stockList = new connector.types.StockData(connector.database);
@@ -794,6 +824,7 @@ module.exports = {
         let ddd = await stockData
           .getTable()
           .where("marker", "like", "%매수%")
+          .andWhere("code", "=", code)
           .orderBy("date", "desc")
           .limit(1);
 
@@ -814,28 +845,28 @@ module.exports = {
 
         var _water_buy =
           curr_data.volume > 0 &&
-          prev_data.volume > 10000 &&
+          prev_data.volume >= old_data.volume &&
           old_data.meta.recent_trend < 0 &&
           prev_data.meta.recent_trend > 0 &&
-          (suggest_data.close + prev_data.close) / 2 >= curr_data.close;
+          (suggest_data.close + prev_data.close) / 2 >= curr_data.low;
 
         // 추매용
         const srline =
           curr_data.volume > 0 &&
-          prev_data.volume > 10000 &&
-          curr_data.close <= (suggest_data.close + prev_data.close) / 2 &&
-          prev_data.meta.insight.future_resist >=
+          prev_data.volume >= old_data.volume &&
+          curr_data.low <= (suggest_data.close + prev_data.close) / 2 &&
+          curr_data.meta.insight.future_resist >=
             old_data.meta.insight.future_support &&
           prev_data.meta.insight.support > old_data.meta.insight.resist &&
-          old_data.meta.insight.support == 0
+          old_data.meta.insight.support <= 1
             ? true
             : false;
 
         // 물타기용!!
         const mfiline =
           curr_data.volume > 0 &&
-          prev_data.volume > 10000 &&
-          curr_data.close <= (suggest_data.close + prev_data.close) / 2 &&
+          prev_data.volume >= old_data.volume &&
+          curr_data.low <= (suggest_data.close + prev_data.close) / 2 &&
           prev_data.meta.recent_trend < 0 &&
           prev_data.meta.insight.support <= prev_data.meta.insight.resist &&
           old_data.meta.mfi < old_data.meta.step_mfi &&
@@ -843,7 +874,16 @@ module.exports = {
             ? true
             : false;
 
-        var _buy = srline || mfiline ? true : false;
+        const moneyline =
+          curr_data.volume > 0 &&
+          prev_data.volume >= old_data.volume &&
+          curr_data.low <= (suggest_data.close + prev_data.close) / 2 &&
+          old_data.meta.insight.support <= old_data.meta.insight.resist &&
+          prev_data.meta.insight.support > prev_data.meta.insight.resist
+            ? true
+            : false;
+
+        var _buy = srline || mfiline || moneyline ? true : false;
 
         if (_water_buy) {
           vases.logger.info(
@@ -856,10 +896,14 @@ module.exports = {
           close: curr_data.close,
           low: curr_data.low,
           buy_price: curr_data.close,
-          volume_buy: 0,
+          volume_buy: prev_data.volume <= curr_data.volume,
           water_buy: false,
           init_buy: false,
           buy: _water_buy || _buy,
+          age:
+            ddd.length > 0
+              ? moment.duration(moment().diff(moment(ddd[0].date))).asDays()
+              : -1,
         };
       } catch (error) {
         console.log(error);
@@ -871,6 +915,7 @@ module.exports = {
           init_buy: false,
           buy: false,
           water_buy: false,
+          age: 0,
         };
       }
       res.status(200).send(ret);

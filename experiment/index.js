@@ -26,14 +26,14 @@ let modelParams = {
   numFeatures: trainStock[0].data.length,
   hiddenLayers: 2,
   latentDim: 4,
-  hiddenDim: [7, 3],
+  hiddenDim: [7, 5, 3],
   learningRate: 0.001,
   adamBeta1: 0.5,
 };
 
 let numSteps = 100000;
 let numEpochs = 1;
-let batchSize = 512;
+let batchSize = 256;
 
 let modelSavePath = path.resolve(__dirname, "./new_ae_model");
 
@@ -112,11 +112,13 @@ async function train_data(model) {
       res.history.loss[0],
       res.history.val_loss[0],
       bestMetric.acc,
+      bestMetric.recall,
+      bestMetric.precision,
       bestMetric.tpr,
       bestMetric.tnr
     );
 
-    if (bestMetric.tpr > 0.98 && bestMetric.tnr > 0.98) break;
+    if ((bestMetric.tpr + bestMetric.tnr) / 2 > 0.91) break;
   }
 
   console.log("best : ", best_acc);

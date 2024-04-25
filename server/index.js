@@ -84,7 +84,7 @@ module.exports = (async (config) => {
             }
           }
 
-          for (i = 0; i < me.cpus; i += 1) {
+          for (i = 0; i < 1; i += 1) {
             var worker = cluster.fork();
 
             worker.on("message", function (msg) {

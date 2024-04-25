@@ -25,17 +25,17 @@ let trainStock, testStock;
 let modelParams = {
   numFeatures: trainStock[0].data.length,
   hiddenLayers: 2,
-  latentDim: 2,
-  hiddenDim: [7, 3],
-  learningRate: 0.001,
+  latentDim: 4,
+  hiddenDim: [7, 5, 3],
+  learningRate: 0.0001,
   adamBeta1: 0.5,
 };
 
 let numSteps = 100000;
-let numEpochs = 1;
-let batchSize = 512;
+let numEpochs = 5;
+let batchSize = 1024;
 
-let modelSavePath = path.resolve(__dirname, "./ae_reverse_model");
+let modelSavePath = path.resolve(__dirname, "./reverse_ae_model");
 
 let model, encoder, decoder;
 [model, encoder, decoder] = ae_model.buildModel(modelParams);
@@ -115,18 +115,18 @@ async function train_data(model) {
       bestMetric.tpr,
       bestMetric.tnr
     );
+    if (bestMetric.tpr > 0.97 && bestMetric.tnr > 0.97) break;
+    // patient -= 1;
 
-    patient -= 1;
+    // if (res.history.val_loss[0] < best_loss) {
+    //   best_loss = res.history.val_loss[0];
+    //   patient = 1000;
+    // }
 
-    if (res.history.val_loss[0] < best_loss) {
-      best_loss = res.history.val_loss[0];
-      patient = 1000;
-    }
-
-    if (patient == 0) {
-      console.log("early stopping");
-      break;
-    }
+    // if (patient == 0) {
+    //   console.log("early stopping");
+    //   break;
+    // }
   }
 
   console.log("best : ", best_acc);

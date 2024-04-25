@@ -3,8 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const fsPath = require("fs-path");
 const moment = require("moment");
-const dfd = require("danfojs-node");
-const database = require("./utils/Database");
+
 let list = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "./trading.json"), "utf8")
 );
